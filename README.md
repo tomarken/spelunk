@@ -2,6 +2,8 @@
 `spelunk` is a module containing tools for recursively exploring python objects. Here are a few examples.
 
 ### 1. Printing an object's tree
+
+
 Ex:
   ```python
 from spelunk import print_obj_tree
@@ -23,7 +25,39 @@ print_obj_tree(root_obj=obj)
 # ROOT['key'][4]['subkey'][0] -> (1,)
 # ROOT['key'][4]['subkey'][0][0] -> 1
   ```
-You can also sort by element and/or by path name.
+* The root object is referred to as `ROOT`. 
+* Attributes are denoted with `ROOT.attr`.
+* Keys from mappings are denoted with `ROOT['key']`.
+* Indices from sequences are denoted with `ROOT[idx]`.
+* Elements of sets and frozensets are indicated by their id in memory with `ROOT{id=10012}`. 
+* Elements of a `ValuesView` are indicated by their id in memory with `ROOT{ValuesView_id=10012}`. (These are not common.)
+
+The previous notations will be recursively chained together. For example, the path 
+`ROOT['key'][2]` indicates that in order to access the corresponding object `{3}`, we would 
+use `root_obj['key'][2]`. For sets it is a bit more difficult due to the need to inspect by id. To
+access `4` via `ROOT['key'][3]{id=4431022480}` we would iterate through `root_obj['key'][3]` until we found a
+matching id:
+  ```python
+for elem in root_obj['key'][3]:
+    if id(elem) == 4431022480:
+      break
+      
+print(elem)
+# 4
+  ```
+
+Fortunately, for getting references and manipulating elements of `root_obj`, there are additional tools that 
+avoid needing to tediously address and iterate (see below). 
+
+
+Before moving on, it's worth pointing out you can also sort by element and/or by path name by supplying 
+callables `element_test` and `path_test` that determine whether an element or path is interesting 
+(by default they always return True). `element_test` operates on the element itself and returns a bool. 
+`path_test` operates on either the most recent string (for attributes, mapping keys) or integer 
+(for sequence indices, memory ids of element of sets) of the current path and returns a bool.
+For example, if you're at `root_obj['key']` with path `ROOT['key']`, it would pass `key` to the input of `path_test`
+and `[1, (2,), ...]` to `element_path`.
+
   ```python
 obj = {'key': [1, (2.0,), {3}, frozenset((4,)), {'subkey': [(1,)]}]}
 print_obj_tree(root_obj=obj, element_test=lambda x: isinstance(x, float))
@@ -38,7 +72,7 @@ print_obj_tree(root_obj=obj, path_test=lambda x: x=='subkey')
   ```
 
 ### 2. Getting the values and paths of objects
-To get a dictionary of objects of a particular type/path keyed by path string, use `get_elements`:
+To get a dictionary of objects filtered by element/path and keyed by full path string, use `get_elements`:
 ```python
 from spelunk import get_elements
   
@@ -70,6 +104,8 @@ print(obj)
 # {'key': [1, None, {3}, frozenset({4}), {'subkey': [None]}]}
 ```
 Overwriting will fail if attempting to overwrite an immutable container. 
+
+
 Ex: 
 ```python
 obj = {'key': [1, (2.0,), {3}, frozenset((4,)), {'subkey': [(1,)]}]}
@@ -105,9 +141,9 @@ print(obj)
 ### 4. Hot swapping
 If you need to temporarily overwrite an object's contents with replacement 
 values and then restore the original values, there is a context manager `hot_swap` that achieves this. 
-As an example, say you had an object that contained a thread lock and you wanted to make a deepcopy in 
-order to serialize the object. The deepcopy will fail on the original object due to the fact that thread locks 
-are not serializable.
+As an example, say you had an object that contained threading locks and you wanted to make a deepcopy in 
+order to manipulate but preserve the original. The deepcopy will fail on the original object due to the fact 
+that thread locks are not serializable.
 ```python
 from spelunk import hot_swap
 from _thread import LockType
@@ -117,6 +153,12 @@ from copy import deepcopy
 lock_0 = Lock()
 lock_1 = Lock()
 obj = {'key': [1, lock_0, {3}, frozenset((4,)), {'subkey': [(1,)]}], 'other_lock': lock_1}
+
+print(obj)
+# {
+#   'key': [1, <unlocked _thread.lock object at 0x104a7b870>, {3}, frozenset({4}), {'subkey': [(1,)]}], 
+#  'other_lock': <unlocked _thread.lock object at 0x104a7b840>
+# }
 
 obj_deepcopy = deepcopy(obj)
 # Traceback (most recent call last):
@@ -135,7 +177,7 @@ print(obj)
 #  'other_lock': <unlocked _thread.lock object at 0x104a7b840>
 # }
 ```
-One caveat is that sets cannot be safely hot swapped. This is due to the following situation. Imagine 
+One caveat is that sets cannot in general be safely hot swapped. This is due to the following situation. Imagine 
 swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is ambiguous to determine which 
 elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
 if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
@@ -144,9 +186,16 @@ the set `{1}` could be safely hot swapped to `{None}` and restored.
 ## Details
 ### `__slots__`
 `spelunk` fully support objects that define `__slots__` (as well as `__dict__` simultaneously). For each
-object that isn't an ignored type or a container, the object's MRO is looked up and each parent class is queried
-for possible values of `__slots__` in order to capture those from inheritance. These attributes are collected 
-together (along with the instance's `obj.__dict__`). Note that an object's class attributes are not included. 
+object that isn't an ignored type or an instance of a `Collection`, the object's MRO is looked up and 
+each parent class is queried for possible contents of `__slots__` in order to capture those from inherited classes. 
+These attributes are collected together (along with the contents of the instance's `obj.__dict__`). Note that 
+although we search for `__slots__` (a class attribute), we do not include the object `__slots__` in our exploration 
+because this is a class attribute, not an instance attribute. This changes if we pass a class `cls` as `root_obj`. Here,
+`cls.__dict__` contains all of the attached methods and class attributes (including `__slots__` and the content within).
+Here, we never inherit `__slots__` contents from parent attributes because for any class `cls`, `cls.__class__` is `type` 
+and `type.__mro__` is `(<class 'type'>, <class 'object'>)`. Neither `type` nor `object` define `__slots__`.
+
+
 Ex:
 ```python
 from spelunk import print_obj_tree
@@ -166,8 +215,8 @@ print_obj_tree(A(1))
 # ROOT.val -> 1
 # ...
 ```
-we can see that both the `__slots__` and `__dict__` attributes are captured but the 
-class attributes `important` is not. However, the class itself can be inspected:
+We can see that both the contents of `__slots__` (which containts `__dict__`) and `__dict__` attributes are captured but the 
+class attribute `important` is not. However, the class itself can be inspected:
 ```python
 print_obj_tree(A)
 # ROOT -> <class '__main__.A'>
@@ -176,7 +225,20 @@ print_obj_tree(A)
 # ROOT.__slots__ -> ('__dict__', ...)
 # ROOT.__slots__[0] -> '__dict__'
 # ROOT.__slots__[1] -> 'val'
+# ...
 ```
+
+### Memoization
+`spelunk` utilizes memoization by caching previously seen objects in a memoization dictionary during searches. It will not print new paths for 
+objects which refer to the same place in memory. This is not only important for speed but also to prevent potential infinite recursive loops. There
+is one important class of exceptions. In CPython, certain types of objects always share the same memory location (e.g. certain integers, strings)
+regardless of how they're initialized. For a conservative approach, all instances of `(Number, str, bytes, bytearray)` are prevented from caching
+so that each object's path is memorialized.
+
+### Ignored Collections
+`spelunk` intentionally ignores `Collections` that are instances of `(str, bytes, bytearray, ValuesView)`. The inclusion of the first three prevent
+string-like objects from being broken down by char which is usually not the preferred behavior. The inclusion of `ValuesView` is to prevent recursing 
+into or overwriting the dynamic `ValuesView`.
 
 ## Installation
 If you prefer using `pyenv` and `Poetry` (or have no preference), the `Makefile` provides installation support. Make sure `conda` is deactivated fully (not even `base` active) and `pyenv` is not running a shell. 
