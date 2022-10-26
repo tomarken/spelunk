@@ -143,7 +143,9 @@ If you need to temporarily overwrite an object's contents with replacement
 values and then restore the original values, there is a context manager `hot_swap` that achieves this. 
 As an example, say you had an object that contained threading locks and you wanted to make a deepcopy in 
 order to manipulate but preserve the original. The deepcopy will fail on the original object due to the fact 
-that thread locks are not serializable.
+that thread locks are not serializable. With `hot_swap`, you can safely overwrite the non-serializable elements
+with something safe, perform the deepcopy, and then restore the original elements.
+
 ```python
 from spelunk import hot_swap
 from _thread import LockType
@@ -177,11 +179,14 @@ print(obj)
 #  'other_lock': <unlocked _thread.lock object at 0x104a7b840>
 # }
 ```
-One caveat is that sets cannot in general be safely hot swapped. This is due to the following situation. Imagine 
-swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is ambiguous to determine which 
+
+If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable collection, an exception
+will be thrown before any other legal mutations occur. Additionally, by default, it will throw an exception before any
+attempt to hot swap an element of a mutable set because this cannot be performed reliably. Imagine 
+swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
 elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
 if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
-the set `{1}` could be safely hot swapped to `{None}` and restored.
+the set `{1}` could be safely hot swapped to `{None}` and restored due to the fact that the cardinality is unchanged.
 
 ## Details
 ### `__slots__`
