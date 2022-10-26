@@ -205,7 +205,7 @@ def _increment_obj_pointer(parent: Any, child: tuple[Address, Union[str, int]]) 
 def _get_elements_from_paths(
     root_obj: Any, paths: list[list[tuple[Address, Union[str, int]]]]
 ) -> dict[str, Any]:
-    """Retrieve all object associated with the supplied paths. """
+    """Retrieve all object associated with the supplied paths."""
     output = {}
     root_name = "ROOT"
     for path in paths:
@@ -319,7 +319,7 @@ def print_obj_tree(
     root_obj: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
-    max: Optional[int] = None
+    max: Optional[int] = None,
 ) -> None:
     """
     Print the elements and paths of root_obj that satisfy element_test and path_test.
