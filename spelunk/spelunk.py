@@ -102,7 +102,7 @@ def _get_paths_helper(
             else:
                 address_type = Address.IMMUTABLE_MAPPING_KEY
             for key in obj:
-                elem = obj.get(key)
+                elem = obj[key]
                 current_path_copy = [*current_path]
                 current_path_copy.append((address_type, key))
                 _get_paths_helper(
