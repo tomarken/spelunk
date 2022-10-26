@@ -193,7 +193,7 @@ If you have a different package management system:
 
 ## Developing
 For contributors, kindly use the `Makefile` to perform formatting, linting, and unit testing locally.
-1. Run `make style-check` to dry-run `black` formatting changes
+1. Run `make style-check` to dry-run `black` formatting changes.
 2. Run `make format` to format with `black`.
 3. Run `make lint` to lint with `flake8`.
 4. Run `make unit-test` to run `pytest` and check the coverage report. 
