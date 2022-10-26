@@ -21,7 +21,6 @@ pytest-cov = "^3.0"
         .git,
         __pycache__,
         .pytest_cache,
-        .hypothesis
     """
 
 [build-system]
