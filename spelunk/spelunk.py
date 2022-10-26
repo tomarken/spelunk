@@ -6,7 +6,16 @@ from typing import (
     Optional,
     Generator,
 )
-from collections.abc import Collection, Sequence, MutableSequence, Mapping, MutableMapping, Set, MutableSet, ValuesView
+from collections.abc import (
+    Collection,
+    Sequence,
+    MutableSequence,
+    Mapping,
+    MutableMapping,
+    Set,
+    MutableSet,
+    ValuesView,
+)
 from numbers import Number
 from enum import Enum
 import reprlib
@@ -32,11 +41,18 @@ class Address(Enum):
 def _get_paths(
     root_obj: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
-    path_test: Callable[[Union[str, int]], bool] = lambda x: True
+    path_test: Callable[[Union[str, int]], bool] = lambda x: True,
 ) -> list[list[tuple[Address, Union[str, int]]]]:
     memo = None
     output = []
-    _get_paths_helper(root_obj, element_test=element_test, path_test=path_test, paths=output, current_path=None, memo=memo)
+    _get_paths_helper(
+        root_obj,
+        element_test=element_test,
+        path_test=path_test,
+        paths=output,
+        current_path=None,
+        memo=memo,
+    )
     return output
 
 
@@ -62,8 +78,7 @@ def _get_paths_helper(
     if current_path and current_path[-1]:
         path_to_test = current_path[-1][1]
     else:
-        path_to_test = ''
-
+        path_to_test = ""
 
     if element_test(obj) and path_test(path_to_test):
         paths.append([*current_path])
@@ -85,7 +100,14 @@ def _get_paths_helper(
             elem = getattr(obj, attr, None)
             current_path_copy = [*current_path]
             current_path_copy.append((Address.ATTR, attr))
-            _get_paths_helper(elem, element_test=element_test, path_test=path_test, paths=paths, current_path=current_path_copy, memo=memo)
+            _get_paths_helper(
+                elem,
+                element_test=element_test,
+                path_test=path_test,
+                paths=paths,
+                current_path=current_path_copy,
+                memo=memo,
+            )
     elif isinstance(obj, Collection) and not isinstance(obj, IgnoredCollections):
         if isinstance(obj, Mapping):
             if isinstance(obj, MutableMapping):
@@ -96,8 +118,14 @@ def _get_paths_helper(
                 elem = obj.get(key)
                 current_path_copy = [*current_path]
                 current_path_copy.append((address_type, key))
-                _get_paths_helper(elem, element_test=element_test, path_test=path_test, paths=paths,
-                                  current_path=current_path_copy, memo=memo)
+                _get_paths_helper(
+                    elem,
+                    element_test=element_test,
+                    path_test=path_test,
+                    paths=paths,
+                    current_path=current_path_copy,
+                    memo=memo,
+                )
         elif isinstance(obj, Sequence):
             if isinstance(obj, MutableSequence):
                 address_type = Address.MUTABLE_SEQUENCE_IDX
@@ -106,8 +134,14 @@ def _get_paths_helper(
             for idx, elem in enumerate(obj):
                 current_path_copy = [*current_path]
                 current_path_copy.append((address_type, idx))
-                _get_paths_helper(elem, element_test=element_test, path_test=path_test, paths=paths,
-                                  current_path=current_path_copy, memo=memo)
+                _get_paths_helper(
+                    elem,
+                    element_test=element_test,
+                    path_test=path_test,
+                    paths=paths,
+                    current_path=current_path_copy,
+                    memo=memo,
+                )
         elif isinstance(obj, Set):
             if isinstance(obj, MutableSet):
                 address_type = Address.MUTABLE_SET_ID
@@ -116,8 +150,14 @@ def _get_paths_helper(
             for elem in obj:
                 current_path_copy = [*current_path]
                 current_path_copy.append((address_type, id(elem)))
-                _get_paths_helper(elem, element_test=element_test, path_test=path_test, paths=paths,
-                                  current_path=current_path_copy, memo=memo)
+                _get_paths_helper(
+                    elem,
+                    element_test=element_test,
+                    path_test=path_test,
+                    paths=paths,
+                    current_path=current_path_copy,
+                    memo=memo,
+                )
 
 
 def _increment_path(parent: str, child: tuple[Address, Union[str, int]]) -> str:
@@ -137,8 +177,12 @@ def _increment_obj_pointer(parent: Any, child: tuple[Address, Union[str, int]]) 
     entry_type, entry = child
     if entry_type == Address.ATTR:
         return getattr(parent, entry, None)
-    elif entry_type in [Address.MUTABLE_MAPPING_KEY, Address.IMMUTABLE_MAPPING_KEY,
-                        Address.MUTABLE_SEQUENCE_IDX, Address.IMMUTABLE_SEQUENCE_IDX]:
+    elif entry_type in [
+        Address.MUTABLE_MAPPING_KEY,
+        Address.IMMUTABLE_MAPPING_KEY,
+        Address.MUTABLE_SEQUENCE_IDX,
+        Address.IMMUTABLE_SEQUENCE_IDX,
+    ]:
         return parent[entry]
     elif entry_type in [Address.MUTABLE_SET_ID, Address.IMMUTABLE_SET_ID]:
         for item in parent:
@@ -175,10 +219,16 @@ def _overwrite_element(
                 parent.remove(item)
                 parent.add(overwrite_value)
                 break
-    elif entry_type in [Address.IMMUTABLE_SEQUENCE_IDX, Address.IMMUTABLE_MAPPING_KEY, Address.IMMUTABLE_SET_ID]:
+    elif entry_type in [
+        Address.IMMUTABLE_SEQUENCE_IDX,
+        Address.IMMUTABLE_MAPPING_KEY,
+        Address.IMMUTABLE_SET_ID,
+    ]:
         raise TypeError("Cannot overwrite immutable collections.")
     else:
-        raise ValueError(f"Address of child must correspond to an Address enum value, not {entry_type}.")
+        raise ValueError(
+            f"Address of child must correspond to an Address enum value, not {entry_type}."
+        )
 
 
 def _overwrite_elements_at_paths(
@@ -186,7 +236,7 @@ def _overwrite_elements_at_paths(
     paths: list[list[tuple[Address, Union[str, int]]]],
     overwrite_value: Any,
     silent: bool = False,
-    raise_on_exception: bool = True
+    raise_on_exception: bool = True,
 ) -> Optional[bool]:
     root_name = "ROOT"
     for path in paths:
@@ -218,16 +268,24 @@ def overwrite_elements(
     overwrite_value: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
+    silent: bool = False,
+    raise_on_exception: bool = True,
 ) -> None:
     paths = _get_paths(root_obj, element_test=element_test, path_test=path_test)
-    _overwrite_elements_at_paths(root_obj, paths=paths, overwrite_value=overwrite_value)
+    _overwrite_elements_at_paths(
+        root_obj,
+        paths=paths,
+        overwrite_value=overwrite_value,
+        silent=silent,
+        raise_on_exception=raise_on_exception,
+    )
 
 
 def print_obj_tree(
     root_obj: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
-    max: Optional[int] = None
+    max: Optional[int] = None,
 ) -> None:
     r = reprlib.Repr()
     r.maxstring = 100
@@ -255,16 +313,37 @@ def hot_swap(
     overwrite_value: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
-    allow_mutable_set_mutations: bool = False
+    allow_mutable_set_mutations: bool = False,
 ) -> Generator[None, None, None]:
     original_elem_paths = _get_paths(root_obj, element_test=element_test, path_test=path_test)
-    if any(x[-1][0] in [Address.IMMUTABLE_MAPPING_KEY, Address.IMMUTABLE_SEQUENCE_IDX, Address.IMMUTABLE_SET_ID] for x in original_elem_paths):
+    if any(
+        x[-1][0]
+        in [
+            Address.IMMUTABLE_MAPPING_KEY,
+            Address.IMMUTABLE_SEQUENCE_IDX,
+            Address.IMMUTABLE_SET_ID,
+        ]
+        for x in original_elem_paths
+    ):
         raise TypeError("Cannot overwrite immutable collections.")
-    if any(x[-1][0] == Address.MUTABLE_SET_ID for x in original_elem_paths) and not allow_mutable_set_mutations:
-        raise TypeError("Cannot safely hot swap items in mutable sets (e.g. swap int -> None in {1, 2, 3} -> {None}). "
-                        "To allow hot swapping sets, use the flag allow_mutable_set_mutations.")
+    if (
+        any(x[-1][0] == Address.MUTABLE_SET_ID for x in original_elem_paths)
+        and not allow_mutable_set_mutations
+    ):
+        raise TypeError(
+            "Cannot safely hot swap items in mutable sets (e.g. swap int -> None in {1, 2, 3} ->"
+            " {None}).To allow hot swapping sets, use the flag allow_mutable_set_mutations."
+        )
     original_elems = _get_elements_from_paths(root_obj, original_elem_paths).values()
-    _overwrite_elements_at_paths(root_obj, original_elem_paths, overwrite_value, silent=True, raise_on_exception=True)
+    _overwrite_elements_at_paths(
+        root_obj,
+        original_elem_paths,
+        overwrite_value,
+        silent=True,
+        raise_on_exception=True,
+    )
     yield
     for orig_path, orig_el in zip(original_elem_paths, original_elems):
-        _overwrite_elements_at_paths(root_obj, [orig_path], orig_el, silent=True, raise_on_exception=False)
+        _overwrite_elements_at_paths(
+            root_obj, [orig_path], orig_el, silent=True, raise_on_exception=False
+        )
