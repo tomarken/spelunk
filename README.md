@@ -1,6 +1,10 @@
 # spelunk
-`spelunk` is a module containing tools for recursively exploring python objects. Here are a few examples.
+`spelunk` is a module containing tools for recursively exploring python objects
 
+## Installation
+`spelunk` can be installed with `pip install spelunk`. See below for details on how to install the project for development.
+
+## Quick Use Guide
 ### 1. Printing an object's tree
 
 
@@ -180,15 +184,7 @@ print(obj)
 # }
 ```
 
-If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable collection, an exception
-will be thrown before any modifications occur (even legal mutations) to leave `root_obj` unchanged. 
-Additionally, by default, it will throw an exception before any attempt to hot swap an element of a mutable set because 
-this cannot be performed reliably. Imagine swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
-elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
-if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
-the set `{1}` could be safely hot swapped to `{None}` and restored due to the fact that the cardinality is unchanged.
-
-## Details
+## More Details
 ### `__slots__`
 `spelunk` fully support objects that define `__slots__` (as well as `__dict__` simultaneously). For each
 object that isn't an ignored type or an instance of a `Collection`, the object's MRO is looked up and 
@@ -243,7 +239,17 @@ so that each object's path is memorialized.
 ### Ignored Collections
 `spelunk` intentionally ignores `Collections` that are instances of `(str, ByteString)`. This prevents string-like objects from being broken down by char which is usually not the preferred behavior.
 
-## Installation
+## Developing
+### Project Installation
+If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable collection, an exception
+will be thrown before any modifications occur (even legal mutations) to leave `root_obj` unchanged. 
+Additionally, by default, it will throw an exception before any attempt to hot swap an element of a mutable set because 
+this cannot be performed reliably. Imagine swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
+elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
+if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
+the set `{1}` could be safely hot swapped to `{None}` and restored due to the fact that the cardinality is unchanged.
+
+
 If you prefer using `pyenv` and `Poetry` (or have no preference), the `Makefile` provides installation support. Make sure `conda` is deactivated fully (not even `base` active) and `pyenv` is not running a shell. 
 1. Run `make install-python` to install `pyenv` (if not present) and then use `pyenv` to install the specific version of `python`.
 2. Run `make install-poetry` to install `Poetry` if not already present. 
@@ -255,8 +261,7 @@ If you have a different package management system:
 1. Create a virtual environment.
 2. Either install using `Poetry` or use external tools to convert `poetry.lock` to a `requirements.txt` and `pip install`.
 
-
-## Developing
+### Tests
 For contributors, kindly use the `Makefile` to perform formatting, linting, and unit testing locally.
 1. Run `make style-check` to dry-run `black` formatting changes.
 2. Run `make format` to format with `black`.
