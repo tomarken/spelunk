@@ -87,7 +87,7 @@ print(obj)
 # TypeError: Cannot overwrite immutable collections.
 ```
 Error messages can be silenced with `silent=True` and exceptions can be dismissed with 
-`raise_exception`.
+`raise_on_exception`.
 ```python
 obj = {'key': [1, (2.0,), {3}, frozenset((4,)), {'subkey': [(1,)]}]}
 overwrite_elements(
