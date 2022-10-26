@@ -15,6 +15,7 @@ from collections.abc import (
     Set,
     MutableSet,
     ValuesView,
+    ByteString,
 )
 from numbers import Number
 from enum import Enum
@@ -22,8 +23,8 @@ import reprlib
 from contextlib import contextmanager
 
 
-IgnoredCollections = (str, bytes, bytearray, ValuesView)
-InternedPrimitives = (Number, str, bytes, bytearray)
+IgnoredCollections = (str, ByteString)
+InternedPrimitives = (Number, str, ByteString)
 
 
 class Address(Enum):
@@ -36,6 +37,7 @@ class Address(Enum):
     IMMUTABLE_MAPPING_KEY = "ImmutableMappingKey"
     MUTABLE_SET_ID = "MutableSetID"
     IMMUTABLE_SET_ID = "ImmutableSetID"
+    VALUES_VIEW_ID = "ValuesViewID"
 
 
 def _get_paths(
@@ -53,7 +55,6 @@ def _get_paths(
              type and value e.g
              [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_INDEX_IDX, 0)]]
     """
-    memo = None
     output = []
     _get_paths_helper(
         root_obj,
@@ -61,7 +62,7 @@ def _get_paths(
         path_test=path_test,
         paths=output,
         current_path=None,
-        memo=memo,
+        memo=None,
     )
     return output
 
@@ -94,32 +95,7 @@ def _get_paths_helper(
     if element_test(obj) and path_test(path_to_test):
         paths.append([*current_path])
 
-    if hasattr(obj, "__dict__") or hasattr(obj, "__slots__"):
-        attrs = []
-        if hasattr(obj, "__dict__"):
-            dict_attrs = getattr(obj, "__dict__")
-            for a in dict_attrs:
-                if a not in attrs:
-                    attrs.append(a)
-        for cls in obj.__class__.__mro__:
-            if hasattr(cls, "__slots__"):
-                slots = getattr(cls, "__slots__")
-                for a in slots:
-                    if a not in attrs:
-                        attrs.append(a)
-        for attr in attrs:
-            elem = getattr(obj, attr)
-            current_path_copy = [*current_path]
-            current_path_copy.append((Address.ATTR, attr))
-            _get_paths_helper(
-                elem,
-                element_test=element_test,
-                path_test=path_test,
-                paths=paths,
-                current_path=current_path_copy,
-                memo=memo,
-            )
-    elif isinstance(obj, Collection) and not isinstance(obj, IgnoredCollections):
+    if isinstance(obj, Collection) and not isinstance(obj, IgnoredCollections):
         if isinstance(obj, Mapping):
             if isinstance(obj, MutableMapping):
                 address_type = Address.MUTABLE_MAPPING_KEY
@@ -169,6 +145,43 @@ def _get_paths_helper(
                     current_path=current_path_copy,
                     memo=memo,
                 )
+        elif isinstance(obj, ValuesView):
+            for elem in obj:
+                current_path_copy = [*current_path]
+                current_path_copy.append((Address.VALUES_VIEW_ID, id(elem)))
+                _get_paths_helper(
+                    elem,
+                    element_test=element_test,
+                    path_test=path_test,
+                    paths=paths,
+                    current_path=current_path_copy,
+                    memo=memo,
+                )
+    elif hasattr(obj, "__dict__") or hasattr(obj, "__slots__"):
+        attrs = []
+        if hasattr(obj, "__dict__"):
+            dict_attrs = getattr(obj, "__dict__")
+            for a in dict_attrs:
+                if a not in attrs:
+                    attrs.append(a)
+        for cls in obj.__class__.__mro__:
+            if hasattr(cls, "__slots__"):
+                slots = getattr(cls, "__slots__")
+                for a in slots:
+                    if a not in attrs:
+                        attrs.append(a)
+        for attr in attrs:
+            elem = getattr(obj, attr)
+            current_path_copy = [*current_path]
+            current_path_copy.append((Address.ATTR, attr))
+            _get_paths_helper(
+                elem,
+                element_test=element_test,
+                path_test=path_test,
+                paths=paths,
+                current_path=current_path_copy,
+                memo=memo,
+            )
 
 
 def _increment_path(parent: str, child: tuple[Address, Union[str, int]]) -> str:
@@ -182,6 +195,8 @@ def _increment_path(parent: str, child: tuple[Address, Union[str, int]]) -> str:
         parent += f"[{entry}]"
     elif entry_type in [Address.MUTABLE_SET_ID, Address.IMMUTABLE_SET_ID]:
         parent += "{id=" + f"{entry}" + "}"
+    elif entry_type == Address.VALUES_VIEW_ID:
+        parent += "{" + f"ValuesView_id={entry}" + "}"
     return parent
 
 
@@ -197,7 +212,7 @@ def _increment_obj_pointer(parent: Any, child: tuple[Address, Union[str, int]]) 
         Address.IMMUTABLE_SEQUENCE_IDX,
     ]:
         return parent[entry]
-    elif entry_type in [Address.MUTABLE_SET_ID, Address.IMMUTABLE_SET_ID]:
+    elif entry_type in [Address.MUTABLE_SET_ID, Address.IMMUTABLE_SET_ID, Address.VALUES_VIEW_ID]:
         for item in parent:
             if id(item) == entry:
                 return item
@@ -380,17 +395,20 @@ def hot_swap(
             Address.IMMUTABLE_MAPPING_KEY,
             Address.IMMUTABLE_SEQUENCE_IDX,
             Address.IMMUTABLE_SET_ID,
+            Address.VALUES_VIEW_ID,
         ]
         for x in original_elem_paths
     ):
-        raise TypeError("Cannot overwrite immutable collections.")
+        raise TypeError(
+            "Cannot overwrite immutable collections. Original root_obj has not been changed."
+        )
     if (
         any(x[-1][0] == Address.MUTABLE_SET_ID for x in original_elem_paths)
         and not allow_mutable_set_mutations
     ):
         raise TypeError(
             "Cannot safely hot swap items in mutable sets (e.g. swap int -> None in {1, 2, 3} ->"
-            " {None}).To allow hot swapping sets, use the flag allow_mutable_set_mutations."
+            " {None}). To allow hot swapping sets, use the flag allow_mutable_set_mutations."
         )
     original_elems = _get_elements_from_paths(root_obj, original_elem_paths).values()
     _overwrite_elements_at_paths(
