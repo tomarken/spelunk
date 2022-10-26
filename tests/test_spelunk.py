@@ -18,7 +18,7 @@ from spelunk.spelunk import (
     print_obj_tree,
     get_elements,
     overwrite_elements,
-    hot_swap
+    hot_swap,
 )
 
 PrimTypes = Union[str, bytes, bytearray, int, float, complex, bool, None]
@@ -81,8 +81,20 @@ def get_primitives() -> list[PrimTypes]:
 
 
 def get_empty_containers() -> list[Collection]:
-    Empty = namedtuple('Empty', [])
-    return [list(), deque(), tuple(), Empty(), dict(), OrderedDict(), defaultdict(), MappingProxyType({}), set(), frozenset()]
+    Empty = namedtuple("Empty", [])
+    return [
+        list(),
+        deque(),
+        tuple(),
+        Empty(),
+        dict(),
+        OrderedDict(),
+        defaultdict(),
+        Counter(),
+        MappingProxyType({}),
+        set(),
+        frozenset(),
+    ]
 
 
 @pytest.fixture
@@ -102,7 +114,13 @@ def nested_dict() -> dict[str, dict[str, dict[str, dict[str, None]]]]:
 
 @pytest.fixture
 def nested_mapping_proxy() -> dict[str, dict[str, dict[str, dict[str, None]]]]:
-    return MappingProxyType({"dict": MappingProxyType({"dict": MappingProxyType({"dict": MappingProxyType({"dict": None})})})})
+    return MappingProxyType(
+        {
+            "dict": MappingProxyType(
+                {"dict": MappingProxyType({"dict": MappingProxyType({"dict": None})})}
+            )
+        }
+    )
 
 
 @pytest.fixture
@@ -158,7 +176,11 @@ def test_get_paths__nested_lists(nested_list) -> None:
         [],
         [(Address.MUTABLE_SEQUENCE_IDX, 0)],
         [(Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SEQUENCE_IDX, 0)],
+        [
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+        ],
     ]
     assert _get_paths(nested_list, element_test=lambda x: isinstance(x, list)) == correct
     assert _get_paths(nested_list, element_test=lambda x: False) == []
@@ -170,7 +192,11 @@ def test_get_paths__nested_tuples(nested_tuple) -> None:
         [],
         [(Address.IMMUTABLE_SEQUENCE_IDX, 0)],
         [(Address.IMMUTABLE_SEQUENCE_IDX, 0), (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.IMMUTABLE_SEQUENCE_IDX, 0), (Address.IMMUTABLE_SEQUENCE_IDX, 0), (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
+        [
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+        ],
     ]
     assert _get_paths(nested_tuple, element_test=lambda x: isinstance(x, tuple)) == correct
     assert _get_paths(nested_tuple, element_test=lambda x: False) == []
@@ -182,7 +208,11 @@ def test_get_paths__nested_dicts(nested_dict) -> None:
         [],
         [(Address.MUTABLE_MAPPING_KEY, "dict")],
         [(Address.MUTABLE_MAPPING_KEY, "dict"), (Address.MUTABLE_MAPPING_KEY, "dict")],
-        [(Address.MUTABLE_MAPPING_KEY, "dict"), (Address.MUTABLE_MAPPING_KEY, "dict"), (Address.MUTABLE_MAPPING_KEY, "dict")],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "dict"),
+            (Address.MUTABLE_MAPPING_KEY, "dict"),
+            (Address.MUTABLE_MAPPING_KEY, "dict"),
+        ],
     ]
     assert _get_paths(nested_dict, element_test=lambda x: isinstance(x, dict)) == correct
     assert _get_paths(nested_dict, element_test=lambda x: False) == []
@@ -193,10 +223,20 @@ def test_get_paths__nested_immutable_mappings(nested_mapping_proxy) -> None:
     correct = [
         [],
         [(Address.IMMUTABLE_MAPPING_KEY, "dict")],
-        [(Address.IMMUTABLE_MAPPING_KEY, "dict"), (Address.IMMUTABLE_MAPPING_KEY, "dict")],
-        [(Address.IMMUTABLE_MAPPING_KEY, "dict"), (Address.IMMUTABLE_MAPPING_KEY, "dict"), (Address.IMMUTABLE_MAPPING_KEY, "dict")],
+        [
+            (Address.IMMUTABLE_MAPPING_KEY, "dict"),
+            (Address.IMMUTABLE_MAPPING_KEY, "dict"),
+        ],
+        [
+            (Address.IMMUTABLE_MAPPING_KEY, "dict"),
+            (Address.IMMUTABLE_MAPPING_KEY, "dict"),
+            (Address.IMMUTABLE_MAPPING_KEY, "dict"),
+        ],
     ]
-    assert _get_paths(nested_mapping_proxy, element_test=lambda x: isinstance(x, MappingProxyType)) == correct
+    assert (
+        _get_paths(nested_mapping_proxy, element_test=lambda x: isinstance(x, MappingProxyType))
+        == correct
+    )
     assert _get_paths(nested_mapping_proxy, element_test=lambda x: False) == []
     assert _get_paths(nested_mapping_proxy, path_test=lambda x: False) == []
 
@@ -236,9 +276,9 @@ def test_get_paths__containers_with_primitives(prim: PrimTypes, container: Colle
         elif constructor == MappingProxyType:
             container = MappingProxyType({"immutable_mapping": prim})
         elif constructor == OrderedDict:
-            container = OrderedDict({'ordered_dict': prim})
+            container = OrderedDict({"ordered_dict": prim})
         elif constructor == defaultdict:
-            container = defaultdict({'default_dict': prim})
+            container = defaultdict({"default_dict": prim})
         else:
             prim_contained = [prim]
             container = constructor.__call__(prim_contained)
@@ -288,7 +328,9 @@ def test_get_paths__nested_attrs(nested_A) -> None:
 def test_get_paths__attributes_with_primitives(prim: PrimTypes) -> None:
     a = A(val=prim)
     assert _get_paths(a, element_test=lambda x: isinstance(x, A)) == [[]]
-    assert _get_paths(a, element_test=lambda x: isinstance(x, type(prim))) == [[(Address.ATTR, "val")]]
+    assert _get_paths(a, element_test=lambda x: isinstance(x, type(prim))) == [
+        [(Address.ATTR, "val")]
+    ]
     assert _get_paths(a, element_test=lambda x: False) == []
     assert _get_paths(a, path_test=lambda x: False) == []
 
@@ -307,7 +349,9 @@ def test_get_paths__slots(prim: PrimTypes) -> None:
     b = B()
     b.val = prim
     assert _get_paths(b, element_test=lambda x: isinstance(x, B)) == [[]]
-    assert _get_paths(b, element_test=lambda x: isinstance(x, type(prim))) == [[(Address.ATTR, "val")]]
+    assert _get_paths(b, element_test=lambda x: isinstance(x, type(prim))) == [
+        [(Address.ATTR, "val")]
+    ]
     assert _get_paths(b, element_test=lambda x: False) == []
     assert _get_paths(b, path_test=lambda x: False) == []
 
@@ -503,7 +547,7 @@ def test_overwrite_element__immutable_seq(overwrite: PrimTypes) -> None:
 def test_overwrite_element__bad_address(overwrite: PrimTypes) -> None:
     obj = (1,)
     with pytest.raises(ValueError):
-        _overwrite_element(obj, ('immutable_idx', 0), overwrite)
+        _overwrite_element(obj, ("immutable_idx", 0), overwrite)
 
 
 @pytest.mark.parametrize("overwrite", get_primitives())
@@ -534,21 +578,24 @@ def test_get_elements__by_element(obj_1: A) -> None:
 
 def test_get_elements__by_path(obj_1: A) -> None:
     correct = {"ROOT.new": -1}
-    assert get_elements(obj_1, path_test=lambda x:x=='new') == correct
+    assert get_elements(obj_1, path_test=lambda x: x == "new") == correct
 
 
 def test_overwrite_elements__by_element(obj_3: dict[str, Any]) -> None:
     paths = list(get_elements(obj_3, element_test=lambda x: isinstance(x, int)).keys())
     overwrite_elements(obj_3, overwrite_value=None, element_test=lambda x: isinstance(x, int))
     assert len(list(get_elements(obj_3, element_test=lambda x: isinstance(x, int)).keys())) == 0
-    assert list(get_elements(obj_3, element_test=lambda x: isinstance(x, type(None))).keys()) == paths
+    assert (
+        list(get_elements(obj_3, element_test=lambda x: isinstance(x, type(None))).keys()) == paths
+    )
 
 
 def test_overwrite_elements__by_path(obj_3: dict[str, Any]) -> None:
-    paths = list(get_elements(obj_3, path_test=lambda x: x==1).keys())
-    overwrite_elements(obj_3, overwrite_value=None, path_test=lambda x: x==1)
-    assert len(list(get_elements(obj_3, path_test=lambda x: x==1).keys())) == len(paths)
-    assert obj_3['key'][1] == None
+    paths = list(get_elements(obj_3, path_test=lambda x: x == 1).keys())
+    overwrite_elements(obj_3, overwrite_value=None, path_test=lambda x: x == 1)
+    assert len(list(get_elements(obj_3, path_test=lambda x: x == 1).keys()))\
+           == len(paths)
+    assert obj_3["key"][1] is None
 
 
 def test_print_object_tree(capsys: CaptureFixture, obj_2: dict[str, Any]) -> None:
@@ -595,7 +642,6 @@ def test_hot_swap(obj_2: dict[str, Any]) -> None:
 
 def test_hot_swap__with_immutable_obj() -> None:
     obj = (1, 2, 3)
-    original_paths = _get_paths(obj, element_test=lambda x: isinstance(x, int))
     with pytest.raises(TypeError):
         with hot_swap(obj, None, element_test=lambda x: isinstance(x, int)):
             pass
@@ -603,7 +649,6 @@ def test_hot_swap__with_immutable_obj() -> None:
 
 def test_hot_swap__with_set() -> None:
     obj = {1, 2, 3}
-    original_paths = _get_paths(obj, element_test=lambda x: isinstance(x, int))
     with pytest.raises(TypeError):
         with hot_swap(obj, None, element_test=lambda x: isinstance(x, int)):
             pass
