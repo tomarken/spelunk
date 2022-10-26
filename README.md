@@ -177,3 +177,23 @@ print_obj_tree(A)
 # ROOT.__slots__[0] -> '__dict__'
 # ROOT.__slots__[1] -> 'val'
 ```
+
+## Installation
+If you prefer using `pyenv` and `Poetry` (or have no preference), the `Makefile` provides installation support. Make sure `conda` is deactivated fully (not even `base` active) and `pyenv` is not running a shell. 
+1. Run `make install-python` to install `pyenv` (if not present) and then use `pyenv` to install the specific version of `python`.
+2. Run `make install-poetry` to install `Poetry` if not already present. 
+3. Run `make install-repo` to create a virtual environment `spelunk` stored in `spelunk/.venv` and use `Poetry` to install all dependencies.
+4. To use the environment simply run `source .venv/bin/activate`.
+5. To deactivate simply run `deactivate`.
+
+If you have a different package management system:
+1. Create a virtual environment.
+2. Either install using `Poetry` or use external tools to convert `poetry.lock` to a `requirements.txt` and `pip install`.
+
+
+## Developing
+For contributors, kindly use the `Makefile` to perform formatting, linting, and unit testing locally.
+1. Run `make style-check` to dry-run `black` formatting changes
+2. Run `make format` to format with `black`.
+3. Run `make lint` to lint with `flake8`.
+4. Run `make unit-test` to run `pytest` and check the coverage report. 
