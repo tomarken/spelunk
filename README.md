@@ -237,13 +237,11 @@ print_obj_tree(A)
 `spelunk` utilizes memoization by caching previously seen objects in a memoization dictionary during searches. It will not print new paths for 
 objects which refer to the same place in memory. This is not only important for speed but also to prevent potential infinite recursive loops. There
 is one important class of exceptions. In CPython, certain types of objects always share the same memory location (e.g. certain integers, strings)
-regardless of how they're initialized. For a conservative approach, all instances of `(Number, str, bytes, bytearray)` are prevented from caching
+regardless of how they're initialized. For a conservative approach, all instances of `(Number, str, ByteString)` are prevented from caching
 so that each object's path is memorialized.
 
 ### Ignored Collections
-`spelunk` intentionally ignores `Collections` that are instances of `(str, bytes, bytearray, ValuesView)`. The inclusion of the first three prevent
-string-like objects from being broken down by char which is usually not the preferred behavior. The inclusion of `ValuesView` is to prevent recursing 
-into or overwriting the dynamic `ValuesView`.
+`spelunk` intentionally ignores `Collections` that are instances of `(str, ByteString)`. This prevents string-like objects from being broken down by char which is usually not the preferred behavior.
 
 ## Installation
 If you prefer using `pyenv` and `Poetry` (or have no preference), the `Makefile` provides installation support. Make sure `conda` is deactivated fully (not even `base` active) and `pyenv` is not running a shell. 
