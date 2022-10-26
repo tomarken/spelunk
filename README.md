@@ -2,7 +2,7 @@
 `spelunk` is a module containing tools for recursively exploring python objects. Here are a few examples.
 
 ### 1. Printing an object's tree
-#### Ex:
+Ex:
   ```python
 from spelunk import print_obj_tree
   
@@ -23,7 +23,7 @@ print_obj_tree(root_obj=obj)
 # ROOT['key'][4]['subkey'][0] -> (1,)
 # ROOT['key'][4]['subkey'][0][0] -> 1
   ```
-#### You can also sort by element and/or by path name.
+You can also sort by element and/or by path name.
   ```python
 obj = {'key': [1, (2.0,), {3}, frozenset((4,)), {'subkey': [(1,)]}]}
 print_obj_tree(root_obj=obj, element_test=lambda x: isinstance(x, float))
