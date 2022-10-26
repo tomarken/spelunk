@@ -593,8 +593,7 @@ def test_overwrite_elements__by_element(obj_3: dict[str, Any]) -> None:
 def test_overwrite_elements__by_path(obj_3: dict[str, Any]) -> None:
     paths = list(get_elements(obj_3, path_test=lambda x: x == 1).keys())
     overwrite_elements(obj_3, overwrite_value=None, path_test=lambda x: x == 1)
-    assert len(list(get_elements(obj_3, path_test=lambda x: x == 1).keys()))\
-           == len(paths)
+    assert len(list(get_elements(obj_3, path_test=lambda x: x == 1).keys())) == len(paths)
     assert obj_3["key"][1] is None
 
 
