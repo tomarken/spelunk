@@ -183,6 +183,13 @@ print(obj)
 #  'other_lock': <unlocked _thread.lock object at 0x104a7b840>
 # }
 ```
+If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable collection, an exception
+will be thrown before any modifications occur (even legal mutations) to leave `root_obj` unchanged. 
+Additionally, by default, it will throw an exception before any attempt to hot swap an element of a mutable set because 
+this cannot be performed reliably. Imagine swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
+elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
+if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
+the set `{1}` could be safely hot swapped to `{None}` and restored due to the fact that the cardinality is unchanged.
 
 ## More Details
 ### `__slots__`
@@ -241,15 +248,6 @@ so that each object's path is memorialized.
 
 ## Developing
 ### Project Installation
-If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable collection, an exception
-will be thrown before any modifications occur (even legal mutations) to leave `root_obj` unchanged. 
-Additionally, by default, it will throw an exception before any attempt to hot swap an element of a mutable set because 
-this cannot be performed reliably. Imagine swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
-elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
-if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
-the set `{1}` could be safely hot swapped to `{None}` and restored due to the fact that the cardinality is unchanged.
-
-
 If you prefer using `pyenv` and `Poetry` (or have no preference), the `Makefile` provides installation support. Make sure `conda` is deactivated fully (not even `base` active) and `pyenv` is not running a shell. 
 1. Run `make install-python` to install `pyenv` (if not present) and then use `pyenv` to install the specific version of `python`.
 2. Run `make install-poetry` to install `Poetry` if not already present. 
