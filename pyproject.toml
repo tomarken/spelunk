@@ -1,9 +1,12 @@
 [tool.poetry]
 name = "spelunk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Package with helpful object recursion utils"
 authors = ["Spencer Tomarken <stomarken@gmail.com>"]
 license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/tomarken/spelunk"
+repository = "https://github.com/tomarken/spelunk"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.10"
