@@ -50,7 +50,8 @@ def _get_paths(
     :param element_test: Callable to determine whether an element within root_obj is interesting
     :param path_test: Callable to determine whether a path within root_obj is interesting
     :return: Collection of paths where each path is a collection of tuples describing the address
-             type and value e.g [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_INDEX_IDX, 0)]]
+             type and value e.g
+             [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_INDEX_IDX, 0)]]
     """
     memo = None
     output = []
@@ -73,7 +74,7 @@ def _get_paths_helper(
     current_path: Optional[list[tuple[Address, Union[str, int]]]] = None,
     memo: Optional[dict[int, bool]] = None,
 ) -> None:
-    """Recursive function that inspects obj and recursively inspects any attributes and containers."""
+    """Recursive function that inspects obj and recursively searches any attrs and containers."""
     if current_path is None:
         current_path = []
 
@@ -107,7 +108,7 @@ def _get_paths_helper(
                     if a not in attrs:
                         attrs.append(a)
         for attr in attrs:
-            elem = getattr(obj, attr, None)
+            elem = getattr(obj, attr)
             current_path_copy = [*current_path]
             current_path_copy.append((Address.ATTR, attr))
             _get_paths_helper(
@@ -188,7 +189,7 @@ def _increment_obj_pointer(parent: Any, child: tuple[Address, Union[str, int]]) 
     """Increment the object in memory based on the address type."""
     entry_type, entry = child
     if entry_type == Address.ATTR:
-        return getattr(parent, entry, None)
+        return getattr(parent, entry)
     elif entry_type in [
         Address.MUTABLE_MAPPING_KEY,
         Address.IMMUTABLE_MAPPING_KEY,
@@ -248,7 +249,7 @@ def _overwrite_element(
 def _overwrite_elements_at_paths(
     root_obj: Any,
     paths: list[list[tuple[Address, Union[str, int]]]],
-    overwrite_value: Any,
+    overwrite_value: Any = None,
     silent: bool = False,
     raise_on_exception: bool = True,
 ) -> Optional[bool]:
@@ -288,14 +289,14 @@ def get_elements(
 
 def overwrite_elements(
     root_obj: Any,
-    overwrite_value: Any,
+    overwrite_value: Any = None,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     silent: bool = False,
     raise_on_exception: bool = True,
 ) -> None:
     """
-    Overwrite all elements (in-place) within root_obj that satisfy element_test and path_test with overwrite_value.
+    Overwrite all elements (in-place) within root_obj that satisfy element_test and path_test.
 
     :param root_obj: Root object to search
     :param overwrite_value: Value to overwrite
@@ -352,7 +353,7 @@ def print_obj_tree(
 @contextmanager
 def hot_swap(
     root_obj: Any,
-    overwrite_value: Any,
+    overwrite_value: Any = None,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     allow_mutable_set_mutations: bool = False,
