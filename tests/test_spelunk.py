@@ -1,7 +1,7 @@
 """pytest module for testing spelunk"""
 import pytest
 from _pytest.capture import CaptureFixture
-from collections.abc import Collection
+from collections.abc import Collection, ValuesView, KeysView, ItemsView
 from collections import deque, OrderedDict, defaultdict, Counter, namedtuple
 from typing import Union, Any
 from types import MappingProxyType
@@ -387,6 +387,53 @@ def test_get_paths__slots_with_dict(prim: PrimTypes) -> None:
     assert _get_paths(d, element_test=lambda x: False) == []
 
 
+@pytest.mark.parametrize("prim", get_primitives())
+def test_get_paths__values_view(prim: PrimTypes) -> None:
+    d = {"value": prim}
+    assert _get_paths(d.values(), element_test=lambda x: isinstance(x, ValuesView)) == [[]]
+    assert _get_paths(d.values(), element_test=lambda x: isinstance(x, type(prim))) == [
+        [(Address.VALUES_VIEW_ID, id(prim))]
+    ]
+
+
+@pytest.mark.parametrize("prim", get_primitives())
+def test_get_paths__keys_view(prim: PrimTypes) -> None:
+    try:
+        hash(prim)
+        d = {prim: True}
+        assert _get_paths(d.keys(), element_test=lambda x: isinstance(x, KeysView)) == [[]]
+        assert _get_paths(d.keys(), element_test=lambda x: isinstance(x, type(prim))) == [
+            [(Address.IMMUTABLE_SET_ID, id(prim))]
+        ]
+    except TypeError:
+        pass
+
+
+@pytest.mark.parametrize("prim", get_primitives())
+def test_get_paths__items_view(prim: PrimTypes) -> None:
+    # Can't test the id here because each time d.items() is called, the id changes
+    try:
+        hash(prim)
+        d = {prim: prim}
+        assert _get_paths(d.items(), element_test=lambda x: isinstance(x, ItemsView)) == [[]]
+        paths = _get_paths(d.items(), element_test=lambda x: isinstance(x, type(prim)))
+        assert len(paths) == 2
+        assert paths[0][0][0] == Address.IMMUTABLE_SET_ID
+        assert type(paths[0][0][1]) == int
+        assert paths[0][1] == (Address.IMMUTABLE_SEQUENCE_IDX, 0)
+        assert paths[1][0][0] == Address.IMMUTABLE_SET_ID
+        assert type(paths[1][0][1]) == int
+        assert paths[1][1] == (Address.IMMUTABLE_SEQUENCE_IDX, 1)
+    except TypeError:
+        d = {"key": prim}
+        assert _get_paths(d.items(), element_test=lambda x: isinstance(x, ItemsView)) == [[]]
+        paths = _get_paths(d.items(), element_test=lambda x: isinstance(x, type(prim)))
+        assert len(paths) == 1
+        assert paths[0][0][0] == Address.IMMUTABLE_SET_ID
+        assert type(paths[0][0][1]) == int
+        assert paths[0][1] == (Address.IMMUTABLE_SEQUENCE_IDX, 1)
+
+
 def test_increment_path__attr() -> None:
     assert _increment_path("root_obj", (Address.ATTR, "attr")) == "root_obj.attr"
 
@@ -413,6 +460,13 @@ def test_increment_path__mutable_set() -> None:
 
 def test_increment_path__immutable_set() -> None:
     assert _increment_path("root_obj", (Address.IMMUTABLE_SET_ID, 1010)) == "root_obj{id=1010}"
+
+
+def test_increment_path__values_view() -> None:
+    assert (
+        _increment_path("root_obj", (Address.VALUES_VIEW_ID, 1010))
+        == "root_obj{ValuesView_id=1010}"
+    )
 
 
 def test_increment_obj_pointer__attr() -> None:
@@ -450,6 +504,12 @@ def test_increment_obj_pointer__immutable_set() -> None:
     item = "test_val"
     a = frozenset((item,))
     assert _increment_obj_pointer(a, (Address.IMMUTABLE_SET_ID, id(item))) == "test_val"
+
+
+def test_increment_obj_pointer__values_view() -> None:
+    item = "test_val"
+    d = {"key": item}
+    assert _increment_obj_pointer(d.values(), (Address.VALUES_VIEW_ID, id(item))) == "test_val"
 
 
 def test_get_objs_from_paths(obj_1) -> None:
