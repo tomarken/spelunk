@@ -53,7 +53,7 @@ def _get_paths(
     :param path_test: Callable to determine whether a path within root_obj is interesting
     :return: Collection of paths where each path is a collection of tuples describing the address
              type and value e.g
-             [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_INDEX_IDX, 0)]]
+             [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_SEQUENCE_IDX, 0)]]
     """
     output = []
     _get_paths_helper(
