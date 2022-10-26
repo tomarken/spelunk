@@ -43,6 +43,15 @@ def _get_paths(
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[str, int]], bool] = lambda x: True,
 ) -> list[list[tuple[Address, Union[str, int]]]]:
+    """
+    Get the paths of nested objects in root_obj that satisfy element_test and path_test.
+
+    :param root_obj: The root object to search for attributes and containers
+    :param element_test: Callable to determine whether an element within root_obj is interesting
+    :param path_test: Callable to determine whether a path within root_obj is interesting
+    :return: Collection of paths where each path is a collection of tuples describing the address
+             type and value e.g [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_INDEX_IDX, 0)]]
+    """
     memo = None
     output = []
     _get_paths_helper(
@@ -64,6 +73,7 @@ def _get_paths_helper(
     current_path: Optional[list[tuple[Address, Union[str, int]]]] = None,
     memo: Optional[dict[int, bool]] = None,
 ) -> None:
+    """Recursive function that inspects obj and recursively inspects any attributes and containers."""
     if current_path is None:
         current_path = []
 
@@ -161,6 +171,7 @@ def _get_paths_helper(
 
 
 def _increment_path(parent: str, child: tuple[Address, Union[str, int]]) -> str:
+    """Increment the path depending on the address type."""
     entry_type, entry = child
     if entry_type == Address.ATTR:
         parent += f".{entry}"
@@ -174,6 +185,7 @@ def _increment_path(parent: str, child: tuple[Address, Union[str, int]]) -> str:
 
 
 def _increment_obj_pointer(parent: Any, child: tuple[Address, Union[str, int]]) -> Any:
+    """Increment the object in memory based on the address type."""
     entry_type, entry = child
     if entry_type == Address.ATTR:
         return getattr(parent, entry, None)
@@ -193,6 +205,7 @@ def _increment_obj_pointer(parent: Any, child: tuple[Address, Union[str, int]]) 
 def _get_elements_from_paths(
     root_obj: Any, paths: list[list[tuple[Address, Union[str, int]]]]
 ) -> dict[str, Any]:
+    """Retrieve all object associated with the supplied paths. """
     output = {}
     root_name = "ROOT"
     for path in paths:
@@ -208,6 +221,7 @@ def _get_elements_from_paths(
 def _overwrite_element(
     parent: Any, child: tuple[Address, Union[str, int]], overwrite_value: Any = None
 ) -> Optional[bool]:
+    """Overwrite the parent sub-element at address with overwrite_value."""
     entry_type, entry = child
     if entry_type == Address.ATTR:
         setattr(parent, entry, overwrite_value)
@@ -238,6 +252,7 @@ def _overwrite_elements_at_paths(
     silent: bool = False,
     raise_on_exception: bool = True,
 ) -> Optional[bool]:
+    """Overwrite each elem at each path with overwrite_value."""
     root_name = "ROOT"
     for path in paths:
         key = root_name
@@ -259,6 +274,14 @@ def get_elements(
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
 ) -> dict[str, Any]:
+    """
+    Get all elements within root_obj that satisfy element_test and path_test.
+
+    :param root_obj: Root object to search
+    :param element_test: Callable to determine whether an element within root_obj is interesting
+    :param path_test: Callable to determine whether a path within root_obj is interesting
+    :return: Dict keyed by concatenated address path with values being the interesting objects
+    """
     paths = _get_paths(root_obj, element_test=element_test, path_test=path_test)
     return _get_elements_from_paths(root_obj, paths)
 
@@ -271,6 +294,17 @@ def overwrite_elements(
     silent: bool = False,
     raise_on_exception: bool = True,
 ) -> None:
+    """
+    Overwrite all elements (in-place) within root_obj that satisfy element_test and path_test with overwrite_value.
+
+    :param root_obj: Root object to search
+    :param overwrite_value: Value to overwrite
+    :param element_test: Callable to determine whether an element within root_obj is interesting
+    :param path_test: Callable to determine whether a path within root_obj is interesting
+    :param silent: Whether or not to print address paths that fail
+    :param raise_on_exception: Whether or not to raise on exceptions during overwrite or suppress
+    :return: None
+    """
     paths = _get_paths(root_obj, element_test=element_test, path_test=path_test)
     _overwrite_elements_at_paths(
         root_obj,
@@ -285,8 +319,16 @@ def print_obj_tree(
     root_obj: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
-    max: Optional[int] = None,
+    max: Optional[int] = None
 ) -> None:
+    """
+    Print the elements and paths of root_obj that satisfy element_test and path_test.
+
+    :param root_obj: Root object to search
+    :param element_test: Callable to determine whether an element within root_obj is interesting
+    :param path_test: Callable to determine whether a path within root_obj is interesting
+    :param max: Maximum number of results to print
+    """
     r = reprlib.Repr()
     r.maxstring = 100
     r.maxother = 100
@@ -315,6 +357,21 @@ def hot_swap(
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     allow_mutable_set_mutations: bool = False,
 ) -> Generator[None, None, None]:
+    """
+    Generate a hot swapped object for manipulation that is restored upon close.
+
+    This is a context manager that safely overwrites an object with replacement values
+    and then restore them upon exit. This allows one to e.g. swap out all non-serializable
+    content with safe fillers, dump to JSON, and then restore the original objects.
+
+    :param root_obj: Root object to search
+    :param overwrite_value: Value to overwrite
+    :param element_test: Callable to determine whether an element within root_obj is interesting
+    :param path_test: Callable to determine whether a path within root_obj is interesting
+    :param allow_mutable_set_mutations: Whether or not to allow set content to be overwritten
+                                        (can be unsafe)
+    :return: Generator that yields None
+    """
     original_elem_paths = _get_paths(root_obj, element_test=element_test, path_test=path_test)
     if any(
         x[-1][0]
