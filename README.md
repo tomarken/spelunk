@@ -181,9 +181,9 @@ print(obj)
 ```
 
 If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable collection, an exception
-will be thrown before any other legal mutations occur. Additionally, by default, it will throw an exception before any
-attempt to hot swap an element of a mutable set because this cannot be performed reliably. Imagine 
-swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
+will be thrown before any modifications occur (even legal mutations) to leave `root_obj` unchanged. 
+Additionally, by default, it will throw an exception before any attempt to hot swap an element of a mutable set because 
+this cannot be performed reliably. Imagine swapping all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
 elements of the new set should be restored. By default, hot swapping is not allowed with sets, however,
 if you know it can be performed safely you can use the flag `allow_mutable_set_mutations`. For example,
 the set `{1}` could be safely hot swapped to `{None}` and restored due to the fact that the cardinality is unchanged.
