@@ -382,7 +382,7 @@ def print_obj_tree(
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     memoize: bool = False,
-    unvravel_strings: bool = False,
+    unravel_strings: bool = False,
     max: Optional[int] = None,
 ) -> None:
     """
@@ -413,7 +413,7 @@ def print_obj_tree(
         element_test=element_test,
         path_test=path_test,
         memoize=memoize,
-        unravel_strings=unvravel_strings,
+        unravel_strings=unravel_strings,
     )
     idx = 0
     for key, value in relevant_content.items():
