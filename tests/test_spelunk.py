@@ -7,8 +7,8 @@ from typing import Union, Any
 from types import MappingProxyType
 from copy import copy
 from spelunk.spelunk import (
-    _get_paths,
     Address,
+    _get_paths,
     _increment_path,
     _increment_obj_pointer,
     _get_elements_from_paths,
@@ -87,6 +87,7 @@ def get_empty_containers() -> list[Collection]:
         tuple(),
         Empty(),
         dict(),
+        dict().values(),
         OrderedDict(),
         defaultdict(),
         Counter(),
@@ -111,7 +112,11 @@ def nested_dict() -> dict[str, dict[str, dict[str, dict[str, None]]]]:
     return {"dict": {"dict": {"dict": {"dict": None}}}}
 
 
-NestedMPType = MappingProxyType[str, MappingProxyType[str, MappingProxyType[str, MappingProxyType[str, None]]]]
+NestedMPType = MappingProxyType[
+    str, MappingProxyType[str, MappingProxyType[str, MappingProxyType[str, None]]]
+]
+
+
 @pytest.fixture
 def nested_mapping_proxy() -> NestedMPType:
     return MappingProxyType(
@@ -156,7 +161,7 @@ def obj_3() -> dict[str, Any]:
     a = A([1, 2])
     x = [1, 2, 3]
     y = {(1, 2)}
-    return {'key1': a, 'key2': a, 'key3': x, 'key4': x, 'key5': y, 'key6': y, 'key7': [x, y]}
+    return {"key1": a, "key2": a, "key3": x, "key4": x, "key5": y, "key6": y, "key7": [x, y]}
 
 
 @pytest.fixture
@@ -166,22 +171,46 @@ def obj_4() -> dict[str, Any]:
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
-def test_get_paths__primitives(prim: PrimTypes, memoize: bool) -> None:
-    assert _get_paths(prim, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [[]]
+@pytest.mark.parametrize("memoize", [True, False])
+@pytest.mark.parametrize("unravel", [True, False])
+def test_get_paths__primitives(prim: PrimTypes, memoize: bool, unravel: bool) -> None:
+    print(prim)
+    if not isinstance(prim, str) or not unravel:
+        assert _get_paths(
+            prim,
+            element_test=lambda x: isinstance(x, type(prim)),
+            memoize=memoize,
+            unravel_strings=unravel,
+        ) == [[]]
+    else:
+        if prim:
+            correct = [[]] + [[(Address.IMMUTABLE_SEQUENCE_IDX, i)] for i in range(len(prim))]
+        else:
+            correct = [[]]
+        assert (
+            _get_paths(
+                prim,
+                element_test=lambda x: isinstance(x, type(prim)),
+                memoize=memoize,
+                unravel_strings=unravel,
+            )
+            == correct
+        )
     assert _get_paths(prim, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(prim, path_test=lambda x: False, memoize=memoize) == []
 
 
 @pytest.mark.parametrize("container", get_empty_containers())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__empty_collections(container: Collection, memoize: bool) -> None:
-    assert _get_paths(container, element_test=lambda x: isinstance(x, type(container)), memoize=memoize) == [[]]
+    assert _get_paths(
+        container, element_test=lambda x: isinstance(x, type(container)), memoize=memoize
+    ) == [[]]
     assert _get_paths(container, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(container, path_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__nested_lists(nested_list: list[list[list[list]]], memoize: bool) -> None:
     correct = [
         [],
@@ -193,12 +222,15 @@ def test_get_paths__nested_lists(nested_list: list[list[list[list]]], memoize: b
             (Address.MUTABLE_SEQUENCE_IDX, 0),
         ],
     ]
-    assert _get_paths(nested_list, element_test=lambda x: isinstance(x, list), memoize=memoize) == correct
+    assert (
+        _get_paths(nested_list, element_test=lambda x: isinstance(x, list), memoize=memoize)
+        == correct
+    )
     assert _get_paths(nested_list, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(nested_list, path_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__nested_tuples(nested_tuple: tuple[tuple[tuple[tuple]]], memoize: bool) -> None:
     correct = [
         [],
@@ -210,12 +242,15 @@ def test_get_paths__nested_tuples(nested_tuple: tuple[tuple[tuple[tuple]]], memo
             (Address.IMMUTABLE_SEQUENCE_IDX, 0),
         ],
     ]
-    assert _get_paths(nested_tuple, element_test=lambda x: isinstance(x, tuple), memoize=memoize) == correct
+    assert (
+        _get_paths(nested_tuple, element_test=lambda x: isinstance(x, tuple), memoize=memoize)
+        == correct
+    )
     assert _get_paths(nested_tuple, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(nested_tuple, path_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__nested_dicts(nested_dict: dict[dict[dict[dict]]], memoize: bool) -> None:
     correct = [
         [],
@@ -227,13 +262,18 @@ def test_get_paths__nested_dicts(nested_dict: dict[dict[dict[dict]]], memoize: b
             (Address.MUTABLE_MAPPING_KEY, "dict"),
         ],
     ]
-    assert _get_paths(nested_dict, element_test=lambda x: isinstance(x, dict), memoize=memoize) == correct
+    assert (
+        _get_paths(nested_dict, element_test=lambda x: isinstance(x, dict), memoize=memoize)
+        == correct
+    )
     assert _get_paths(nested_dict, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(nested_dict, path_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
-def test_get_paths__nested_immutable_mappings(nested_mapping_proxy: NestedMPType, memoize: bool) -> None:
+@pytest.mark.parametrize("memoize", [True, False])
+def test_get_paths__nested_immutable_mappings(
+    nested_mapping_proxy: NestedMPType, memoize: bool
+) -> None:
     correct = [
         [],
         [(Address.IMMUTABLE_MAPPING_KEY, "dict")],
@@ -248,17 +288,20 @@ def test_get_paths__nested_immutable_mappings(nested_mapping_proxy: NestedMPType
         ],
     ]
     assert (
-        _get_paths(nested_mapping_proxy, element_test=lambda x: isinstance(x, MappingProxyType), memoize=memoize)
+        _get_paths(
+            nested_mapping_proxy,
+            element_test=lambda x: isinstance(x, MappingProxyType),
+            memoize=memoize,
+        )
         == correct
     )
     assert _get_paths(nested_mapping_proxy, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(nested_mapping_proxy, path_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__nested_frozensets(
-    nested_frozenset: frozenset[frozenset[frozenset[frozenset]]],
-    memoize: bool
+    nested_frozenset: frozenset[frozenset[frozenset[frozenset]]], memoize: bool
 ) -> None:
     for item in nested_frozenset:
         id_1 = id(item)
@@ -277,15 +320,23 @@ def test_get_paths__nested_frozensets(
             (Address.IMMUTABLE_SET_ID, id_3),
         ],
     ]
-    assert _get_paths(nested_frozenset, element_test=lambda x: isinstance(x, frozenset), memoize=memoize) == correct
+    assert (
+        _get_paths(
+            nested_frozenset, element_test=lambda x: isinstance(x, frozenset), memoize=memoize
+        )
+        == correct
+    )
     assert _get_paths(nested_frozenset, element_test=lambda x: False, memoize=memoize) == []
     assert _get_paths(nested_frozenset, path_test=lambda x: False, memoize=memoize) == []
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('container', get_empty_containers())
-@pytest.mark.parametrize('memoize', [True, False])
-def test_get_paths__containers_with_primitives(prim: PrimTypes, container: Collection, memoize: bool) -> None:
+@pytest.mark.parametrize("container", get_empty_containers())
+@pytest.mark.parametrize("memoize", [True, False])
+@pytest.mark.parametrize("unravel", [True, False])
+def test_get_paths__containers_with_primitives(
+    prim: PrimTypes, container: Collection, memoize: bool, unravel: bool
+) -> None:
     constructor = type(container)
     try:
         hash(prim)
@@ -297,40 +348,164 @@ def test_get_paths__containers_with_primitives(prim: PrimTypes, container: Colle
             container = OrderedDict({"ordered_dict": prim})
         elif constructor == defaultdict:
             container = defaultdict({"default_dict": prim})
+        elif constructor == ValuesView:
+            container = ValuesView({"dict": prim})
         else:
             prim_contained = [prim]
             container = constructor.__call__(prim_contained)
-        assert _get_paths(container, element_test=lambda x: isinstance(x, type(container)), memoize=memoize) == [[]]
+        assert _get_paths(
+            container,
+            element_test=lambda x: isinstance(x, type(container)),
+            memoize=memoize,
+            unravel_strings=unravel,
+        ) == [[]]
         if constructor is list:
-            assert _get_paths(container, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-                [(Address.MUTABLE_SEQUENCE_IDX, 0)]
-            ]
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.MUTABLE_SEQUENCE_IDX, 0)]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.MUTABLE_SEQUENCE_IDX, 0)]] + [
+                    [(Address.MUTABLE_SEQUENCE_IDX, 0), (Address.IMMUTABLE_SEQUENCE_IDX, i)]
+                    for i in range(len(prim))
+                ]
+
         if constructor is tuple:
-            assert _get_paths(container, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-                [(Address.IMMUTABLE_SEQUENCE_IDX, 0)]
-            ]
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.IMMUTABLE_SEQUENCE_IDX, 0)]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.IMMUTABLE_SEQUENCE_IDX, 0)]] + [
+                    [(Address.IMMUTABLE_SEQUENCE_IDX, 0), (Address.IMMUTABLE_SEQUENCE_IDX, i)]
+                    for i in range(len(prim))
+                ]
+
         elif constructor is dict:
-            assert _get_paths(container, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-                [(Address.MUTABLE_MAPPING_KEY, "dict")]
-            ]
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.MUTABLE_MAPPING_KEY, "dict")]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.MUTABLE_MAPPING_KEY, "dict")]] + [
+                    [(Address.MUTABLE_MAPPING_KEY, "dict"), (Address.IMMUTABLE_SEQUENCE_IDX, i)]
+                    for i in range(len(prim))
+                ]
         elif constructor is MappingProxyType:
-            assert _get_paths(container, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-                [(Address.IMMUTABLE_MAPPING_KEY, "immutable_mapping")]
-            ]
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.IMMUTABLE_MAPPING_KEY, "immutable_mapping")]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.IMMUTABLE_MAPPING_KEY, "immutable_mapping")]] + [
+                    [
+                        (Address.IMMUTABLE_MAPPING_KEY, "immutable_mapping"),
+                        (Address.IMMUTABLE_SEQUENCE_IDX, i),
+                    ]
+                    for i in range(len(prim))
+                ]
         elif constructor is set:
-            assert _get_paths(container, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-                [(Address.MUTABLE_SET_ID, id(list(container)[0]))]
-            ]
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.MUTABLE_SET_ID, id(list(container)[0]))]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.MUTABLE_SET_ID, id(list(container)[0]))]] + [
+                    [
+                        (Address.MUTABLE_SET_ID, id(list(container)[0])),
+                        (Address.IMMUTABLE_SEQUENCE_IDX, i),
+                    ]
+                    for i in range(len(prim))
+                ]
         elif constructor == frozenset:
-            assert _get_paths(container, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-                [(Address.IMMUTABLE_SET_ID, id(list(container)[0]))]
-            ]
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.IMMUTABLE_SET_ID, id(list(container)[0]))]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.IMMUTABLE_SET_ID, id(list(container)[0]))]] + [
+                    [
+                        (Address.IMMUTABLE_SET_ID, id(list(container)[0])),
+                        (Address.IMMUTABLE_SEQUENCE_IDX, i),
+                    ]
+                    for i in range(len(prim))
+                ]
+        elif constructor == ValuesView:
+            if not isinstance(prim, str) or not unravel or not prim:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.VALUES_VIEW_ID, id(list(container)[0]))]]
+            else:
+                assert _get_paths(
+                    container,
+                    element_test=lambda x: isinstance(x, type(prim)),
+                    memoize=memoize,
+                    unravel_strings=unravel,
+                ) == [[(Address.VALUES_VIEW_ID, id(list(container)[0]))]] + [
+                    [
+                        (Address.VALUES_VIEW_ID, id(list(container)[0])),
+                        (Address.IMMUTABLE_SEQUENCE_IDX, i),
+                    ]
+                    for i in range(len(prim))
+                ]
+
         assert _get_paths(container, element_test=lambda x: False, memoize=memoize) == []
     except TypeError:
         pass
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__nested_attrs(nested_A: A, memoize: bool) -> None:
     correct = [
         [],
@@ -344,7 +519,7 @@ def test_get_paths__nested_attrs(nested_A: A, memoize: bool) -> None:
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__attributes_with_primitives(prim: PrimTypes, memoize: bool) -> None:
     a = A(val=prim)
     assert _get_paths(a, element_test=lambda x: isinstance(x, A), memoize=memoize) == [[]]
@@ -367,12 +542,12 @@ def test_get_paths__attributes_with_references(prim: PrimTypes, memoize: bool) -
     else:
         assert _get_paths(a, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
             [(Address.ATTR, "val"), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-            [(Address.ATTR, "val2"), (Address.MUTABLE_SEQUENCE_IDX, 0)]
+            [(Address.ATTR, "val2"), (Address.MUTABLE_SEQUENCE_IDX, 0)],
         ]
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__slots(prim: PrimTypes, memoize: bool) -> None:
     b = B()
     b.val = prim
@@ -385,7 +560,7 @@ def test_get_paths__slots(prim: PrimTypes, memoize: bool) -> None:
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__slots_with_inheritance(prim: PrimTypes, memoize: bool) -> None:
     c = C()
     c.val = prim
@@ -400,7 +575,7 @@ def test_get_paths__slots_with_inheritance(prim: PrimTypes, memoize: bool) -> No
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__slots_with_dict(prim: PrimTypes, memoize: bool) -> None:
     d = D()
     d.val = prim
@@ -413,43 +588,53 @@ def test_get_paths__slots_with_dict(prim: PrimTypes, memoize: bool) -> None:
         [(Address.ATTR, "val2")],
         [(Address.ATTR, "val")],
     ]
-    assert _get_paths(d, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == correct
+    assert (
+        _get_paths(d, element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == correct
+    )
     assert _get_paths(d, element_test=lambda x: False, memoize=memoize) == []
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__values_view(prim: PrimTypes, memoize: bool) -> None:
     d = {"value": prim}
-    assert _get_paths(d.values(), element_test=lambda x: isinstance(x, ValuesView), memoize=memoize) == [[]]
-    assert _get_paths(d.values(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-        [(Address.VALUES_VIEW_ID, id(prim))]
-    ]
+    assert _get_paths(
+        d.values(), element_test=lambda x: isinstance(x, ValuesView), memoize=memoize
+    ) == [[]]
+    assert _get_paths(
+        d.values(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize
+    ) == [[(Address.VALUES_VIEW_ID, id(prim))]]
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__keys_view(prim: PrimTypes, memoize: bool) -> None:
     try:
         hash(prim)
         d = {prim: True}
-        assert _get_paths(d.keys(), element_test=lambda x: isinstance(x, KeysView), memoize=memoize) == [[]]
-        assert _get_paths(d.keys(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize) == [
-            [(Address.IMMUTABLE_SET_ID, id(prim))]
-        ]
+        assert _get_paths(
+            d.keys(), element_test=lambda x: isinstance(x, KeysView), memoize=memoize
+        ) == [[]]
+        assert _get_paths(
+            d.keys(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize
+        ) == [[(Address.IMMUTABLE_SET_ID, id(prim))]]
     except TypeError:
         pass
 
 
 @pytest.mark.parametrize("prim", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__items_view(prim: PrimTypes, memoize: bool) -> None:
     # Can't test the id here because each time d.items() is called, the id changes
     try:
         hash(prim)
         d = {prim: prim}
-        assert _get_paths(d.items(), element_test=lambda x: isinstance(x, ItemsView), memoize=memoize) == [[]]
-        paths = _get_paths(d.items(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize)
+        assert _get_paths(
+            d.items(), element_test=lambda x: isinstance(x, ItemsView), memoize=memoize
+        ) == [[]]
+        paths = _get_paths(
+            d.items(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize
+        )
         assert len(paths) == 2
         assert paths[0][0][0] == Address.IMMUTABLE_SET_ID
         assert type(paths[0][0][1]) == int
@@ -459,76 +644,159 @@ def test_get_paths__items_view(prim: PrimTypes, memoize: bool) -> None:
         assert paths[1][1] == (Address.IMMUTABLE_SEQUENCE_IDX, 1)
     except TypeError:
         d = {"key": prim}
-        assert _get_paths(d.items(), element_test=lambda x: isinstance(x, ItemsView), memoize=memoize) == [[]]
-        paths = _get_paths(d.items(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize)
+        assert _get_paths(
+            d.items(), element_test=lambda x: isinstance(x, ItemsView), memoize=memoize
+        ) == [[]]
+        paths = _get_paths(
+            d.items(), element_test=lambda x: isinstance(x, type(prim)), memoize=memoize
+        )
         assert len(paths) == 1
         assert paths[0][0][0] == Address.IMMUTABLE_SET_ID
         assert type(paths[0][0][1]) == int
         assert paths[0][1] == (Address.IMMUTABLE_SEQUENCE_IDX, 1)
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__obj_1(obj_1: A, memoize: bool) -> None:
     correct = [
-        [(Address.ATTR, "val"), (Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SET_ID, id(123))],
+        [
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.MUTABLE_SET_ID, id(123)),
+        ],
         [(Address.ATTR, "new")],
-        [(Address.ATTR, "also"), (Address.ATTR, 'val')],
+        [(Address.ATTR, "also"), (Address.ATTR, "val")],
     ]
     assert _get_paths(obj_1, element_test=lambda x: isinstance(x, int), memoize=memoize) == correct
     assert _get_paths(obj_1, element_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__obj_2(obj_2: dict[str, Any], memoize: bool) -> None:
     correct = [
         [(Address.MUTABLE_MAPPING_KEY, "key"), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key"), (Address.MUTABLE_SEQUENCE_IDX, 1), (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
         [
-            (Address.MUTABLE_MAPPING_KEY, "key"), (Address.MUTABLE_SEQUENCE_IDX, 2), (Address.MUTABLE_SEQUENCE_IDX, 0),
-            (Address.ATTR, 'val')
-         ]
+            (Address.MUTABLE_MAPPING_KEY, "key"),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key"),
+            (Address.MUTABLE_SEQUENCE_IDX, 2),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.ATTR, "val"),
+        ],
     ]
 
     assert _get_paths(obj_2, element_test=lambda x: isinstance(x, int), memoize=memoize) == correct
     assert _get_paths(obj_2, element_test=lambda x: False, memoize=memoize) == []
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_paths__obj_3(obj_3: dict[str, Any], memoize: bool) -> None:
-    for item in obj_3['key5']:
+    for item in obj_3["key5"]:
         item_id = id(item)
 
     correct_no_memo = [
-        [(Address.MUTABLE_MAPPING_KEY, "key1"), (Address.ATTR, 'val'), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key1"), (Address.ATTR, 'val'), (Address.MUTABLE_SEQUENCE_IDX, 1)],
-        [(Address.MUTABLE_MAPPING_KEY, "key2"), (Address.ATTR, 'val'), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key2"), (Address.ATTR, 'val'), (Address.MUTABLE_SEQUENCE_IDX, 1)],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key1"),
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key1"),
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key2"),
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key2"),
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+        ],
         [(Address.MUTABLE_MAPPING_KEY, "key3"), (Address.MUTABLE_SEQUENCE_IDX, 0)],
         [(Address.MUTABLE_MAPPING_KEY, "key3"), (Address.MUTABLE_SEQUENCE_IDX, 1)],
         [(Address.MUTABLE_MAPPING_KEY, "key3"), (Address.MUTABLE_SEQUENCE_IDX, 2)],
         [(Address.MUTABLE_MAPPING_KEY, "key4"), (Address.MUTABLE_SEQUENCE_IDX, 0)],
         [(Address.MUTABLE_MAPPING_KEY, "key4"), (Address.MUTABLE_SEQUENCE_IDX, 1)],
         [(Address.MUTABLE_MAPPING_KEY, "key4"), (Address.MUTABLE_SEQUENCE_IDX, 2)],
-        [(Address.MUTABLE_MAPPING_KEY, "key5"), (Address.MUTABLE_SET_ID, item_id), (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key5"), (Address.MUTABLE_SET_ID, item_id), (Address.IMMUTABLE_SEQUENCE_IDX, 1)],
-        [(Address.MUTABLE_MAPPING_KEY, "key6"), (Address.MUTABLE_SET_ID, item_id), (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key6"), (Address.MUTABLE_SET_ID, item_id), (Address.IMMUTABLE_SEQUENCE_IDX, 1)],
-        [(Address.MUTABLE_MAPPING_KEY, "key7"), (Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key7"), (Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SEQUENCE_IDX, 1)],
-        [(Address.MUTABLE_MAPPING_KEY, "key7"), (Address.MUTABLE_SEQUENCE_IDX, 0), (Address.MUTABLE_SEQUENCE_IDX, 2)],
-        [(Address.MUTABLE_MAPPING_KEY, "key7"), (Address.MUTABLE_SEQUENCE_IDX, 1), (Address.MUTABLE_SET_ID, item_id),
-         (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key7"), (Address.MUTABLE_SEQUENCE_IDX, 1), (Address.MUTABLE_SET_ID, item_id),
-         (Address.IMMUTABLE_SEQUENCE_IDX, 1)],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key5"),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key5"),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 1),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key6"),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key6"),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 1),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key7"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key7"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key7"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+            (Address.MUTABLE_SEQUENCE_IDX, 2),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key7"),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key7"),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 1),
+        ],
     ]
     correct_memo = [
-        [(Address.MUTABLE_MAPPING_KEY, "key1"), (Address.ATTR, 'val'), (Address.MUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key1"), (Address.ATTR, 'val'), (Address.MUTABLE_SEQUENCE_IDX, 1)],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key1"),
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key1"),
+            (Address.ATTR, "val"),
+            (Address.MUTABLE_SEQUENCE_IDX, 1),
+        ],
         [(Address.MUTABLE_MAPPING_KEY, "key3"), (Address.MUTABLE_SEQUENCE_IDX, 0)],
         [(Address.MUTABLE_MAPPING_KEY, "key3"), (Address.MUTABLE_SEQUENCE_IDX, 1)],
         [(Address.MUTABLE_MAPPING_KEY, "key3"), (Address.MUTABLE_SEQUENCE_IDX, 2)],
-        [(Address.MUTABLE_MAPPING_KEY, "key5"), (Address.MUTABLE_SET_ID, item_id), (Address.IMMUTABLE_SEQUENCE_IDX, 0)],
-        [(Address.MUTABLE_MAPPING_KEY, "key5"), (Address.MUTABLE_SET_ID, item_id), (Address.IMMUTABLE_SEQUENCE_IDX, 1)]]
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key5"),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 0),
+        ],
+        [
+            (Address.MUTABLE_MAPPING_KEY, "key5"),
+            (Address.MUTABLE_SET_ID, item_id),
+            (Address.IMMUTABLE_SEQUENCE_IDX, 1),
+        ],
+    ]
 
     if memoize:
         ans = correct_memo
@@ -536,6 +804,36 @@ def test_get_paths__obj_3(obj_3: dict[str, Any], memoize: bool) -> None:
         ans = correct_no_memo
     assert _get_paths(obj_3, element_test=lambda x: isinstance(x, int), memoize=memoize) == ans
     assert _get_paths(obj_3, element_test=lambda x: False, memoize=memoize) == []
+
+
+@pytest.mark.parametrize("unravel", [True, False])
+def test_get_paths__unravel_string(unravel: bool) -> None:
+    s = "string"
+    if unravel:
+        correct = [[]] + [[(Address.IMMUTABLE_SEQUENCE_IDX, i)] for i in range(len(s))]
+    else:
+        correct = [[]]
+    assert _get_paths(s, unravel_strings=unravel) == correct
+
+
+@pytest.mark.parametrize("unravel", [True, False])
+def test_get_paths__unravel_bytes(unravel: bool) -> None:
+    s = bytes("string", encoding="utf-8")
+    if unravel:
+        correct = [[]] + [[(Address.IMMUTABLE_SEQUENCE_IDX, i)] for i in range(len(s))]
+    else:
+        correct = [[]]
+    assert _get_paths(s, unravel_strings=unravel) == correct
+
+
+@pytest.mark.parametrize("unravel", [True, False])
+def test_get_paths__unravel_bytearray(unravel: bool) -> None:
+    s = bytearray("string", encoding="utf-8")
+    if unravel:
+        correct = [[]] + [[(Address.MUTABLE_SEQUENCE_IDX, i)] for i in range(len(s))]
+    else:
+        correct = [[]]
+    assert _get_paths(s, unravel_strings=unravel) == correct
 
 
 def test_increment_path__attr() -> None:
@@ -616,7 +914,7 @@ def test_increment_obj_pointer__values_view() -> None:
     assert _increment_obj_pointer(d.values(), (Address.VALUES_VIEW_ID, id(item))) == "test_val"
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_objs_from_paths(obj_1: A, memoize: bool) -> None:
     correct = {
         "ROOT.val[0]{id=" + f"{id(123)}" + "}": 123,
@@ -716,7 +1014,7 @@ def test_overwrite_element__bad_address(overwrite: PrimTypes) -> None:
 
 
 @pytest.mark.parametrize("overwrite", get_primitives())
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_overwrite_elements_at_paths(obj_1: A, overwrite: PrimTypes, memoize: bool) -> None:
     paths = _get_paths(obj_1, element_test=lambda x: True, memoize=memoize)
     _overwrite_elements_at_paths(obj_1, paths, overwrite, silent=True, raise_on_exception=False)
@@ -725,7 +1023,7 @@ def test_overwrite_elements_at_paths(obj_1: A, overwrite: PrimTypes, memoize: bo
     assert obj_1.also == overwrite
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_overwrite_elements_at_paths__raise_exception(memoize: bool) -> None:
     obj = {1}
     paths = _get_paths(obj, element_test=lambda x: isinstance(x, int), memoize=memoize)
@@ -733,41 +1031,63 @@ def test_overwrite_elements_at_paths__raise_exception(memoize: bool) -> None:
         _overwrite_elements_at_paths(obj_1, paths, overwrite_value=[])
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_elements__by_element(obj_1: A, memoize: bool) -> None:
     correct = {
         "ROOT.val[0]{id=" + f"{id(123)}" + "}": 123,
         "ROOT.new": -1,
         "ROOT.also.val": 33,
     }
-    assert get_elements(obj_1, element_test=lambda x: isinstance(x, int), memoize=memoize) == correct
+    assert (
+        get_elements(obj_1, element_test=lambda x: isinstance(x, int), memoize=memoize) == correct
+    )
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_get_elements__by_path(obj_1: A, memoize: bool) -> None:
     correct = {"ROOT.new": -1}
     assert get_elements(obj_1, path_test=lambda x: x == "new", memoize=memoize) == correct
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_overwrite_elements__by_element(obj_4: dict[str, Any], memoize: bool) -> None:
-    paths = list(get_elements(obj_4, element_test=lambda x: isinstance(x, int), memoize=memoize).keys())
-    overwrite_elements(obj_4, overwrite_value=None, element_test=lambda x: isinstance(x, int), memoize=memoize)
-    assert len(list(get_elements(obj_4, element_test=lambda x: isinstance(x, int), memoize=memoize).keys())) == 0
+    paths = list(
+        get_elements(obj_4, element_test=lambda x: isinstance(x, int), memoize=memoize).keys()
+    )
+    overwrite_elements(
+        obj_4, overwrite_value=None, element_test=lambda x: isinstance(x, int), memoize=memoize
+    )
     assert (
-        list(get_elements(obj_4, element_test=lambda x: isinstance(x, type(None)), memoize=memoize).keys()) == paths
+        len(
+            list(
+                get_elements(
+                    obj_4, element_test=lambda x: isinstance(x, int), memoize=memoize
+                ).keys()
+            )
+        )
+        == 0
+    )
+    assert (
+        list(
+            get_elements(
+                obj_4, element_test=lambda x: isinstance(x, type(None)), memoize=memoize
+            ).keys()
+        )
+        == paths
     )
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_overwrite_elements__by_path(obj_4: dict[str, Any], memoize: bool) -> None:
     paths = list(get_elements(obj_4, path_test=lambda x: x == 1, memoize=memoize).keys())
     overwrite_elements(obj_4, overwrite_value=None, path_test=lambda x: x == 1, memoize=memoize)
-    assert len(list(get_elements(obj_4, path_test=lambda x: x == 1, memoize=memoize).keys())) == len(paths)
+    assert len(
+        list(get_elements(obj_4, path_test=lambda x: x == 1, memoize=memoize).keys())
+    ) == len(paths)
     assert obj_4["key"][1] is None
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_print_object_tree(capsys: CaptureFixture, obj_2: dict[str, Any], memoize: bool) -> None:
     print_obj_tree(obj_2, memoize=memoize)
     out, err = capsys.readouterr()
@@ -783,8 +1103,10 @@ def test_print_object_tree(capsys: CaptureFixture, obj_2: dict[str, Any], memoiz
     assert correct_output == out
 
 
-@pytest.mark.parametrize('memoize', [True, False])
-def test_print_object_tree_filter_types(capsys: CaptureFixture, obj_2: dict[str, Any], memoize: bool) -> None:
+@pytest.mark.parametrize("memoize", [True, False])
+def test_print_object_tree_filter_types(
+    capsys: CaptureFixture, obj_2: dict[str, Any], memoize: bool
+) -> None:
     print_obj_tree(obj_2, element_test=lambda x: isinstance(x, list), memoize=memoize)
     out, err = capsys.readouterr()
     correct_output = "ROOT['key'] -> [1, (2,), ...]\n"
@@ -793,8 +1115,10 @@ def test_print_object_tree_filter_types(capsys: CaptureFixture, obj_2: dict[str,
     assert correct_output == out
 
 
-@pytest.mark.parametrize('memoize', [True, False])
-def test_print_object_tree_max(capsys: CaptureFixture, obj_2: dict[str, Any], memoize: bool) -> None:
+@pytest.mark.parametrize("memoize", [True, False])
+def test_print_object_tree_max(
+    capsys: CaptureFixture, obj_2: dict[str, Any], memoize: bool
+) -> None:
     print_obj_tree(obj_2, max=3, memoize=memoize)
     out, err = capsys.readouterr()
     correct_output = "ROOT -> {'key': [1, (2,), ...]}\n"
@@ -804,16 +1128,20 @@ def test_print_object_tree_max(capsys: CaptureFixture, obj_2: dict[str, Any], me
     assert correct_output == out
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_hot_swap(obj_2: dict[str, Any], memoize: bool) -> None:
     original_paths = _get_paths(obj_2, element_test=lambda x: isinstance(x, A), memoize=memoize)
     with hot_swap(obj_2, None, element_test=lambda x: isinstance(x, A), memoize=memoize):
         assert not _get_paths(obj_2, element_test=lambda x: isinstance(x, A), memoize=memoize)
-        assert _get_paths(obj_2, element_test=lambda x: x is None, memoize=memoize) == original_paths
-    assert original_paths == _get_paths(obj_2, element_test=lambda x: isinstance(x, A), memoize=memoize)
+        assert (
+            _get_paths(obj_2, element_test=lambda x: x is None, memoize=memoize) == original_paths
+        )
+    assert original_paths == _get_paths(
+        obj_2, element_test=lambda x: isinstance(x, A), memoize=memoize
+    )
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_hot_swap__with_immutable_obj(memoize: bool) -> None:
     obj = (1, 2, 3)
     with pytest.raises(TypeError):
@@ -821,7 +1149,7 @@ def test_hot_swap__with_immutable_obj(memoize: bool) -> None:
             pass
 
 
-@pytest.mark.parametrize('memoize', [True, False])
+@pytest.mark.parametrize("memoize", [True, False])
 def test_hot_swap__with_set(memoize: bool) -> None:
     obj = {1, 2, 3}
     with pytest.raises(TypeError):
