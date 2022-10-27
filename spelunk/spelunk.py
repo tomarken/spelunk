@@ -23,8 +23,8 @@ import reprlib
 from contextlib import contextmanager
 
 
-IgnoredCollections = (str, ByteString)
-InternedPrimitives = (Number, str, ByteString) # NoneType is also included
+AtomicCollections = (str, ByteString)
+InternedPrimitives = (Number, str, ByteString)  # NoneType is also included
 
 
 class Address(Enum):
@@ -44,7 +44,8 @@ def _get_paths(
     root_obj: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[str, int]], bool] = lambda x: True,
-    memoize: bool = False
+    memoize: bool = False,
+    unravel_strings: bool = False,
 ) -> list[list[tuple[Address, Union[str, int]]]]:
     """
     Get the paths of nested objects in root_obj that satisfy element_test and path_test.
@@ -55,6 +56,7 @@ def _get_paths(
     :param memoize: Whether or not to cache elements by id and only return unique elements.
                     Note that certain types are never cached (NoneType, Number, str, ByteString) due
                     to interning in CPython.
+    :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :return: Collection of paths where each path is a collection of tuples describing the address
              type and value e.g
              [[(Address.MUTABLE_MAPPING_KEY, 'key'), (Address.MUTABLE_SEQUENCE_IDX, 0)]]
@@ -67,7 +69,8 @@ def _get_paths(
         paths=output,
         current_path=None,
         memo=None,
-        memoize=memoize
+        memoize=memoize,
+        unravel_strings=unravel_strings,
     )
     return output
 
@@ -79,7 +82,8 @@ def _get_paths_helper(
     paths: list[list[tuple[Address, Union[str, int]]]],
     current_path: Optional[list[tuple[Address, Union[str, int]]]] = None,
     memo: Optional[dict[int, bool]] = None,
-    memoize: bool = False
+    memoize: bool = False,
+    unravel_strings: bool = False,
 ) -> None:
     """Recursive function that inspects obj and recursively searches any attrs and containers."""
     if current_path is None:
@@ -101,7 +105,9 @@ def _get_paths_helper(
     if element_test(obj) and path_test(path_to_test):
         paths.append([*current_path])
 
-    if isinstance(obj, Collection) and not isinstance(obj, IgnoredCollections):
+    if isinstance(obj, Collection) and (not isinstance(obj, AtomicCollections) or unravel_strings):
+        if isinstance(obj, str) and len(obj) == 1:
+            return
         if isinstance(obj, Mapping):
             if isinstance(obj, MutableMapping):
                 address_type = Address.MUTABLE_MAPPING_KEY
@@ -118,7 +124,8 @@ def _get_paths_helper(
                     paths=paths,
                     current_path=current_path_copy,
                     memo=memo,
-                    memoize=memoize
+                    memoize=memoize,
+                    unravel_strings=unravel_strings,
                 )
         elif isinstance(obj, Sequence):
             if isinstance(obj, MutableSequence):
@@ -135,7 +142,8 @@ def _get_paths_helper(
                     paths=paths,
                     current_path=current_path_copy,
                     memo=memo,
-                    memoize=memoize
+                    memoize=memoize,
+                    unravel_strings=unravel_strings,
                 )
         elif isinstance(obj, Set):
             if isinstance(obj, MutableSet):
@@ -152,7 +160,8 @@ def _get_paths_helper(
                     paths=paths,
                     current_path=current_path_copy,
                     memo=memo,
-                    memoize=memoize
+                    memoize=memoize,
+                    unravel_strings=unravel_strings,
                 )
         elif isinstance(obj, ValuesView):
             for elem in obj:
@@ -165,7 +174,8 @@ def _get_paths_helper(
                     paths=paths,
                     current_path=current_path_copy,
                     memo=memo,
-                    memoize=memoize
+                    memoize=memoize,
+                    unravel_strings=unravel_strings,
                 )
     elif hasattr(obj, "__dict__") or hasattr(obj, "__slots__"):
         attrs = []
@@ -191,7 +201,8 @@ def _get_paths_helper(
                 paths=paths,
                 current_path=current_path_copy,
                 memo=memo,
-                memoize=memoize
+                memoize=memoize,
+                unravel_strings=unravel_strings,
             )
 
 
@@ -300,7 +311,8 @@ def get_elements(
     root_obj: Any,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
-    memoize: bool = False
+    memoize: bool = False,
+    unravel_strings: bool = False,
 ) -> dict[str, Any]:
     """
     Get all elements within root_obj that satisfy element_test and path_test.
@@ -311,9 +323,16 @@ def get_elements(
     :param memoize: Whether or not to cache elements by id and only return unique elements.
                 Note that certain types are never cached (NoneType, Number, str, ByteString) due
                 to interning in CPython.
+    :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :return: Dict keyed by concatenated address path with values being the interesting objects
     """
-    paths = _get_paths(root_obj, element_test=element_test, path_test=path_test, memoize=memoize)
+    paths = _get_paths(
+        root_obj,
+        element_test=element_test,
+        path_test=path_test,
+        memoize=memoize,
+        unravel_strings=unravel_strings,
+    )
     return _get_elements_from_paths(root_obj, paths)
 
 
@@ -323,6 +342,7 @@ def overwrite_elements(
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     memoize: bool = False,
+    unravel_strings: bool = False,
     silent: bool = False,
     raise_on_exception: bool = True,
 ) -> None:
@@ -336,11 +356,18 @@ def overwrite_elements(
     :param memoize: Whether or not to cache elements by id and only return unique elements.
                     Note that certain types are never cached (NoneType, Number, str, ByteString) due
                     to interning in CPython.
+    :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :param silent: Whether or not to print address paths that fail
     :param raise_on_exception: Whether or not to raise on exceptions during overwrite or suppress
     :return: None
     """
-    paths = _get_paths(root_obj, element_test=element_test, path_test=path_test, memoize=memoize)
+    paths = _get_paths(
+        root_obj,
+        element_test=element_test,
+        path_test=path_test,
+        memoize=memoize,
+        unravel_strings=unravel_strings,
+    )
     _overwrite_elements_at_paths(
         root_obj,
         paths=paths,
@@ -355,6 +382,7 @@ def print_obj_tree(
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     memoize: bool = False,
+    unvravel_strings: bool = False,
     max: Optional[int] = None,
 ) -> None:
     """
@@ -366,6 +394,7 @@ def print_obj_tree(
     :param memoize: Whether or not to cache elements by id and only return unique elements.
                     Note that certain types are never cached (NoneType, Number, str, ByteString) due
                     to interning in CPython.
+    :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :param max: Maximum number of results to print
     """
     r = reprlib.Repr()
@@ -379,7 +408,13 @@ def print_obj_tree(
     r.maxarray = 2
     r.maxdeque = 2
 
-    relevant_content = get_elements(root_obj, element_test=element_test, path_test=path_test, memoize=memoize)
+    relevant_content = get_elements(
+        root_obj,
+        element_test=element_test,
+        path_test=path_test,
+        memoize=memoize,
+        unravel_strings=unvravel_strings,
+    )
     idx = 0
     for key, value in relevant_content.items():
         if max is not None and idx >= max:
@@ -395,6 +430,7 @@ def hot_swap(
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     memoize: bool = False,
+    unravel_strings: bool = False,
     allow_mutable_set_mutations: bool = False,
 ) -> Generator[None, None, None]:
     """
@@ -411,11 +447,18 @@ def hot_swap(
     :param memoize: Whether or not to cache elements by id and only return unique elements.
                     Note that certain types are never cached (NoneType, Number, str, ByteString) due
                     to interning in CPython.
+    :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :param allow_mutable_set_mutations: Whether or not to allow set content to be overwritten
                                         (can be unsafe)
     :return: Generator that yields None
     """
-    original_elem_paths = _get_paths(root_obj, element_test=element_test, path_test=path_test, memoize=memoize)
+    original_elem_paths = _get_paths(
+        root_obj,
+        element_test=element_test,
+        path_test=path_test,
+        memoize=memoize,
+        unravel_strings=unravel_strings,
+    )
     if any(
         x[-1][0]
         in [
