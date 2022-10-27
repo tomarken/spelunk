@@ -200,15 +200,15 @@ however, if you know it can be performed safely you can use the kwarg
 
 ## More Details
 ### `__slots__` and other class attributes
-`spelunk` fully support objects that define `__slots__` (as well as `__dict__` simultaneously). 
-In order to deal with slot attributes that may be inherited from parent classes, the object's MRO is 
+`spelunk` fully support objects that define `__slots__` (as well as `__dict__` simultaneously). In 
+order to deal with slot attributes that may be inherited from parent classes, the object's MRO is 
 queried. For each parent class, the contents of `__slots__` is collected (along with the object's 
 `__dict__` contents if `__dict__` is defined). Note that although we are accessing the class 
 attribute `__slots__`, we don't collect the object `__slots__` itself since this belongs to the 
 class and not the instance. Additionally, the attribute `__dict__` itself and any attributes stored 
-outside `obj.__dict__` are not collected. To be clear, the contents of `obj.__dict__` are collected,
+outside `obj.__dict__` are not collected. To be clear, the contents of `obj.__dict__` are collected, 
 just not `__dict__` itself. The one exception is when `__dict__` is defined as a member of 
-`__slots__` to support both slot attributes and dynamically assigned attributes.
+`__slots__` to support both slot attributes and dynamically assigned attributes. 
 
 If one wants to inspect a class attribute, the class itself can be passed in as the `root_obj`. 
 Here, `__slots__` as well as all methods and other attributes of the class will be collected and 
@@ -234,8 +234,8 @@ print_obj_tree(A(1))
 # ROOT.val -> 1
 # ...
 ```
-We can see that both the contents of `__slots__` (which contains `__dict__`) and `__dict__`
-are captured but the class attribute `important` is not. However, the class itself can be
+We can see that both the contents of `__slots__` (which contains `__dict__`) and `__dict__` 
+are captured but the class attribute `important` is not. However, the class itself can be 
 inspected:
 ```python
 print_obj_tree(A)
@@ -259,7 +259,7 @@ all instances will always refer to the same item in memory in CPython.
 
 ### String unraveling
 `spelunk` by default assumes that all subclasses of `str` or `ByteString` refer to an atomic 
-collection that should not be recursed into character by character. If you do want to recurse
+collection that should not be recursed into character by character. If you do want to recurse 
 into a `str` or `ByteString` instance, use the kwarg `unravel_strings=True`.
 
 ## Developing
