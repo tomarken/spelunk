@@ -244,7 +244,7 @@ def _overwrite_element(
         Address.IMMUTABLE_SEQUENCE_IDX,
         Address.IMMUTABLE_MAPPING_KEY,
         Address.IMMUTABLE_SET_ID,
-        Address.VALUES_VIEW_ID
+        Address.VALUES_VIEW_ID,
     ]:
         raise TypeError("Cannot overwrite immutable collections.")
     else:
@@ -272,8 +272,10 @@ def _overwrite_elements_at_paths(
             _overwrite_element(obj, path[-1], overwrite_value)
         except TypeError as e:
             if not silent:
-                print(f"Failed to overwrite {_increment_obj_pointer(obj, path[-1])} at "
-                      f"{_increment_path(key, path[-1])}.")
+                print(
+                    f"Failed to overwrite {_increment_obj_pointer(obj, path[-1])} at "
+                    f"{_increment_path(key, path[-1])}."
+                )
             if raise_on_exception:
                 raise e
         except Exception as e:
@@ -432,9 +434,13 @@ def hot_swap(
         memoize=memoize,
         unravel_strings=unravel_strings,
     )
-    if not allow_mutable_set_mutations and any(path[-1][0] == Address.MUTABLE_SET_ID for path in original_elem_paths):
-        raise TypeError("Cannot safely overwrite and revert mutable sets due to cardinality changes. "
-                        "Set allow_mutable_set_mutations=True to allow mutable set mutations.")
+    if not allow_mutable_set_mutations and any(
+        path[-1][0] == Address.MUTABLE_SET_ID for path in original_elem_paths
+    ):
+        raise TypeError(
+            "Cannot safely overwrite and revert mutable sets due to cardinality changes. "
+            "Set allow_mutable_set_mutations=True to allow mutable set mutations."
+        )
     original_elems = _get_elements_from_paths(root_obj, original_elem_paths).values()
     try:
         _overwrite_elements_at_paths(
@@ -446,8 +452,10 @@ def hot_swap(
         )
         yield
     except Exception as e:
-        print("Exception raised during hot swapping. root_obj will attempt to be restored to its "
-              "original form.")
+        print(
+            "Exception raised during hot swapping. root_obj will attempt to be restored to its "
+            "original form."
+        )
         raise e
     finally:
         for path in original_elem_paths:

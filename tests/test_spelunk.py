@@ -1066,7 +1066,7 @@ def test_overwrite_elements_at_paths__raise_type_error(memoize: bool) -> None:
 def test_overwrite_elements_at_paths__raise_value_error(memoize: bool) -> None:
     obj = (1,)
     paths = _get_paths(obj, element_test=lambda x: isinstance(x, int), memoize=memoize)
-    paths[0][0] = ('bad_value', paths[0][0][1])
+    paths[0][0] = ("bad_value", paths[0][0][1])
     with pytest.raises(ValueError):
         _overwrite_elements_at_paths(obj_1, paths, overwrite_value=None)
 
@@ -1201,7 +1201,9 @@ def test_hot_swap__with_set(memoize: bool) -> None:
 def test_hot_swap__with_set_allow_mutations(memoize: bool) -> None:
     obj = {1, 2, 3}
     original_id = id(obj)
-    with hot_swap(obj, None, element_test=lambda x: x==1, memoize=memoize, allow_mutable_set_mutations=True):
+    with hot_swap(
+        obj, None, element_test=lambda x: x == 1, memoize=memoize, allow_mutable_set_mutations=True
+    ):
         assert obj == {None, 2, 3}
         assert id(obj) == original_id
     assert obj == {1, 2, 3}
