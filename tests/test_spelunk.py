@@ -9,6 +9,8 @@ from copy import copy
 from spelunk.spelunk import (
     Address,
     _get_paths,
+    _get_paths_helper,
+    _collect_all_attrs,
     _increment_path,
     _increment_obj_pointer,
     _get_elements_from_paths,
@@ -174,7 +176,6 @@ def obj_4() -> dict[str, Any]:
 @pytest.mark.parametrize("memoize", [True, False])
 @pytest.mark.parametrize("unravel", [True, False])
 def test_get_paths__primitives(prim: PrimTypes, memoize: bool, unravel: bool) -> None:
-    print(prim)
     if not isinstance(prim, str) or not unravel:
         assert _get_paths(
             prim,
@@ -836,6 +837,32 @@ def test_get_paths__unravel_bytearray(unravel: bool) -> None:
     assert _get_paths(s, unravel_strings=unravel) == correct
 
 
+def test_get_paths_helper() -> None:
+    d = D()
+    output = []
+    _get_paths_helper(
+        d,
+        element_test=lambda x: True,
+        path_test=lambda x: True,
+        paths=output,
+        current_path=None,
+        memo=None,
+        memoize=False,
+    )
+    assert output == [
+        [],
+        [(Address.ATTR, "__dict__")],
+        [(Address.ATTR, "val2")],
+        [(Address.ATTR, "val")],
+    ]
+
+
+def test_collect_all_attrs() -> None:
+    d = D()
+    d.other = "other"
+    assert _collect_all_attrs(d) == ["other", "__dict__", "val2", "val"]
+
+
 def test_increment_path__attr() -> None:
     assert _increment_path("root_obj", (Address.ATTR, "attr")) == "root_obj.attr"
 
@@ -1016,19 +1043,32 @@ def test_overwrite_element__bad_address(overwrite: PrimTypes) -> None:
 @pytest.mark.parametrize("overwrite", get_primitives())
 @pytest.mark.parametrize("memoize", [True, False])
 def test_overwrite_elements_at_paths(obj_1: A, overwrite: PrimTypes, memoize: bool) -> None:
-    paths = _get_paths(obj_1, element_test=lambda x: True, memoize=memoize)
-    _overwrite_elements_at_paths(obj_1, paths, overwrite, silent=True, raise_on_exception=False)
-    assert obj_1.val == overwrite
-    assert obj_1.new == overwrite
-    assert obj_1.also == overwrite
+    try:
+        hash(overwrite)
+        paths = _get_paths(obj_1, element_test=lambda x: isinstance(x, int), memoize=memoize)
+        _overwrite_elements_at_paths(obj_1, paths, overwrite, silent=True, raise_on_exception=True)
+        assert obj_1.val == [{overwrite}]
+        assert obj_1.new == overwrite
+        assert obj_1.also.val == overwrite
+    except TypeError:
+        pass
 
 
 @pytest.mark.parametrize("memoize", [True, False])
-def test_overwrite_elements_at_paths__raise_exception(memoize: bool) -> None:
+def test_overwrite_elements_at_paths__raise_type_error(memoize: bool) -> None:
     obj = {1}
     paths = _get_paths(obj, element_test=lambda x: isinstance(x, int), memoize=memoize)
     with pytest.raises(TypeError):
         _overwrite_elements_at_paths(obj_1, paths, overwrite_value=[])
+
+
+@pytest.mark.parametrize("memoize", [True, False])
+def test_overwrite_elements_at_paths__raise_value_error(memoize: bool) -> None:
+    obj = (1,)
+    paths = _get_paths(obj, element_test=lambda x: isinstance(x, int), memoize=memoize)
+    paths[0][0] = ("bad_value", paths[0][0][1])
+    with pytest.raises(ValueError):
+        _overwrite_elements_at_paths(obj_1, paths, overwrite_value=None)
 
 
 @pytest.mark.parametrize("memoize", [True, False])
@@ -1155,3 +1195,16 @@ def test_hot_swap__with_set(memoize: bool) -> None:
     with pytest.raises(TypeError):
         with hot_swap(obj, None, element_test=lambda x: isinstance(x, int), memoize=memoize):
             pass
+
+
+@pytest.mark.parametrize("memoize", [True, False])
+def test_hot_swap__with_set_allow_mutations(memoize: bool) -> None:
+    obj = {1, 2, 3}
+    original_id = id(obj)
+    with hot_swap(
+        obj, None, element_test=lambda x: x == 1, memoize=memoize, allow_mutable_set_mutations=True
+    ):
+        assert obj == {None, 2, 3}
+        assert id(obj) == original_id
+    assert obj == {1, 2, 3}
+    assert id(obj) == original_id

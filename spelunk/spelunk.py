@@ -105,95 +105,47 @@ def _get_paths_helper(
     if element_test(obj) and path_test(path_to_test):
         paths.append([*current_path])
 
+    it = None  # iterable to search through
+    get_elem_and_path = None  # func to get next elem and path
+    address_type = None  # Next address type
     if isinstance(obj, Collection) and (not isinstance(obj, AtomicCollections) or unravel_strings):
-        if isinstance(obj, str) and len(obj) == 1:
+        if isinstance(obj, str) and len(obj) == 1:  # prevents infinite loop with unraveling str
             return
         if isinstance(obj, Mapping):
             if isinstance(obj, MutableMapping):
                 address_type = Address.MUTABLE_MAPPING_KEY
             else:
                 address_type = Address.IMMUTABLE_MAPPING_KEY
-            for key in obj:
-                elem = obj.get(key, None)
-                current_path_copy = [*current_path]
-                current_path_copy.append((address_type, key))
-                _get_paths_helper(
-                    elem,
-                    element_test=element_test,
-                    path_test=path_test,
-                    paths=paths,
-                    current_path=current_path_copy,
-                    memo=memo,
-                    memoize=memoize,
-                    unravel_strings=unravel_strings,
-                )
+            it = obj
+            get_elem_and_path = lambda i, ob: (ob.get(i, None), i)
         elif isinstance(obj, Sequence):
             if isinstance(obj, MutableSequence):
                 address_type = Address.MUTABLE_SEQUENCE_IDX
             else:
                 address_type = Address.IMMUTABLE_SEQUENCE_IDX
-            for idx, elem in enumerate(obj):
-                current_path_copy = [*current_path]
-                current_path_copy.append((address_type, idx))
-                _get_paths_helper(
-                    elem,
-                    element_test=element_test,
-                    path_test=path_test,
-                    paths=paths,
-                    current_path=current_path_copy,
-                    memo=memo,
-                    memoize=memoize,
-                    unravel_strings=unravel_strings,
-                )
+            it = enumerate(obj)
+            get_elem_and_path = lambda i, ob: (i[1], i[0])
         elif isinstance(obj, Set):
             if isinstance(obj, MutableSet):
                 address_type = Address.MUTABLE_SET_ID
             else:
                 address_type = Address.IMMUTABLE_SET_ID
-            for elem in obj:
-                current_path_copy = [*current_path]
-                current_path_copy.append((address_type, id(elem)))
-                _get_paths_helper(
-                    elem,
-                    element_test=element_test,
-                    path_test=path_test,
-                    paths=paths,
-                    current_path=current_path_copy,
-                    memo=memo,
-                    memoize=memoize,
-                    unravel_strings=unravel_strings,
-                )
+            it = obj
+            get_elem_and_path = lambda i, ob: (i, id(i))
         elif isinstance(obj, ValuesView):
-            for elem in obj:
-                current_path_copy = [*current_path]
-                current_path_copy.append((Address.VALUES_VIEW_ID, id(elem)))
-                _get_paths_helper(
-                    elem,
-                    element_test=element_test,
-                    path_test=path_test,
-                    paths=paths,
-                    current_path=current_path_copy,
-                    memo=memo,
-                    memoize=memoize,
-                    unravel_strings=unravel_strings,
-                )
+            address_type = Address.VALUES_VIEW_ID
+            it = obj
+            get_elem_and_path = lambda i, ob: (i, id(i))
     elif hasattr(obj, "__dict__") or hasattr(obj, "__slots__"):
-        attrs = []
-        if hasattr(obj, "__dict__"):
-            dict_attrs = getattr(obj, "__dict__")
-            for a in dict_attrs:
-                if a not in attrs:
-                    attrs.append(a)
-        for cls in obj.__class__.__mro__:
-            if hasattr(cls, "__slots__"):
-                slots = getattr(cls, "__slots__")
-                for a in slots:
-                    if a not in attrs:
-                        attrs.append(a)
-        for attr in attrs:
-            elem = getattr(obj, attr, None)
+        address_type = Address.ATTR
+        it = _collect_all_attrs(obj)
+        get_elem_and_path = lambda i, ob: (getattr(ob, i, None), i)
+
+    if it and get_elem_and_path and address_type:
+        for i in it:
+            elem, path = get_elem_and_path(i, obj)
             current_path_copy = [*current_path]
-            current_path_copy.append((Address.ATTR, attr))
+            current_path_copy.append((address_type, path))
             _get_paths_helper(
                 elem,
                 element_test=element_test,
@@ -204,6 +156,23 @@ def _get_paths_helper(
                 memoize=memoize,
                 unravel_strings=unravel_strings,
             )
+
+
+def _collect_all_attrs(obj: Any) -> list[str]:
+    """Collect all entries of __dict__ of obj and __slots__ of inherited classes."""
+    attrs = []
+    if hasattr(obj, "__dict__"):
+        dict_attrs = getattr(obj, "__dict__")
+        for a in dict_attrs:
+            if a not in attrs:
+                attrs.append(a)
+    for cls in obj.__class__.__mro__:
+        if hasattr(cls, "__slots__"):
+            slots = getattr(cls, "__slots__")
+            for a in slots:
+                if a not in attrs:
+                    attrs.append(a)
+    return attrs
 
 
 def _increment_path(parent: str, child: tuple[Address, Union[str, int]]) -> str:
@@ -275,6 +244,7 @@ def _overwrite_element(
         Address.IMMUTABLE_SEQUENCE_IDX,
         Address.IMMUTABLE_MAPPING_KEY,
         Address.IMMUTABLE_SET_ID,
+        Address.VALUES_VIEW_ID,
     ]:
         raise TypeError("Cannot overwrite immutable collections.")
     else:
@@ -289,22 +259,27 @@ def _overwrite_elements_at_paths(
     overwrite_value: Any = None,
     silent: bool = False,
     raise_on_exception: bool = True,
-) -> Optional[bool]:
+) -> None:
     """Overwrite each elem at each path with overwrite_value."""
     root_name = "ROOT"
     for path in paths:
         key = root_name
         obj = root_obj
+        for branch in path[:-1]:
+            key = _increment_path(key, branch)
+            obj = _increment_obj_pointer(obj, branch)
         try:
-            for stem in path[:-1]:
-                key = _increment_path(key, stem)
-                obj = _increment_obj_pointer(obj, stem)
             _overwrite_element(obj, path[-1], overwrite_value)
-        except Exception as e:
+        except TypeError as e:
             if not silent:
-                print(f"Failed to overwrite {path}. Exception:\n {e}")
+                print(
+                    f"Failed to overwrite {_increment_obj_pointer(obj, path[-1])} at "
+                    f"{_increment_path(key, path[-1])}."
+                )
             if raise_on_exception:
                 raise e
+        except Exception as e:
+            raise e
 
 
 def get_elements(
@@ -459,37 +434,34 @@ def hot_swap(
         memoize=memoize,
         unravel_strings=unravel_strings,
     )
-    if any(
-        x[-1][0]
-        in [
-            Address.IMMUTABLE_MAPPING_KEY,
-            Address.IMMUTABLE_SEQUENCE_IDX,
-            Address.IMMUTABLE_SET_ID,
-            Address.VALUES_VIEW_ID,
-        ]
-        for x in original_elem_paths
+    if not allow_mutable_set_mutations and any(
+        path[-1][0] == Address.MUTABLE_SET_ID for path in original_elem_paths
     ):
         raise TypeError(
-            "Cannot overwrite immutable collections. Original root_obj has not been changed."
-        )
-    if (
-        any(x[-1][0] == Address.MUTABLE_SET_ID for x in original_elem_paths)
-        and not allow_mutable_set_mutations
-    ):
-        raise TypeError(
-            "Cannot safely hot swap items in mutable sets (e.g. swap int -> None in {1, 2, 3} ->"
-            " {None}). To allow hot swapping sets, use the flag allow_mutable_set_mutations."
+            "Cannot safely overwrite and revert mutable sets due to cardinality changes. "
+            "Set allow_mutable_set_mutations=True to allow mutable set mutations."
         )
     original_elems = _get_elements_from_paths(root_obj, original_elem_paths).values()
-    _overwrite_elements_at_paths(
-        root_obj,
-        original_elem_paths,
-        overwrite_value,
-        silent=True,
-        raise_on_exception=True,
-    )
-    yield
-    for orig_path, orig_el in zip(original_elem_paths, original_elems):
+    try:
         _overwrite_elements_at_paths(
-            root_obj, [orig_path], orig_el, silent=True, raise_on_exception=False
+            root_obj,
+            original_elem_paths,
+            overwrite_value,
+            silent=True,
+            raise_on_exception=True,
         )
+        yield
+    except Exception as e:
+        print(
+            "Exception raised during hot swapping. root_obj will attempt to be restored to its "
+            "original form."
+        )
+        raise e
+    finally:
+        for path in original_elem_paths:
+            if path[-1][0] == Address.MUTABLE_SET_ID:
+                path[-1] = (Address.MUTABLE_SET_ID, id(overwrite_value))
+        for orig_path, orig_el in zip(original_elem_paths, original_elems):
+            _overwrite_elements_at_paths(
+                root_obj, [orig_path], orig_el, silent=True, raise_on_exception=True
+            )

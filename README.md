@@ -16,8 +16,8 @@ from spelunk import print_obj_tree
 obj = {'key': [1, (2.0,), {3}, frozenset((4,)), {'subkey': [(1,)]}]}
 print_obj_tree(root_obj=obj)
 
-# ROOT -> {'key': [1, ...]}
-# ROOT['key'] -> [1, ...]
+# ROOT -> {'key': [1, (2.0,), ...]}
+# ROOT['key'] -> [1, (2.0,), ...]
 # ROOT['key'][0] -> 1
 # ROOT['key'][1] -> (2.0,)
 # ROOT['key'][1][0] -> 2.0
@@ -59,7 +59,7 @@ tools that avoid needing to tediously address and iterate (see below).
 Before moving on, it's worth pointing out you can also sort by element and/or by path name by 
 supplying callables `element_test` and `path_test` that determine whether an element or path is 
 interesting (by default they always return True). `element_test` operates on the element itself and 
-returns a bool. `path_test` operates on the most recent path value  of the current path (either 
+returns a bool. `path_test` operates on the most recent branch of the current path (either 
 string for attributes/mapping keys or integers for sequences and sets) and returns a bool. For 
 example, if you're at `root_obj['key']` with path `ROOT['key']`, it would pass `key` to the input of
 `path_test` and `[1, (2,), ...]` to `element_test`.
@@ -123,8 +123,7 @@ overwrite_elements(
 )
 print(obj)
 
-# Failed to overwrite [(<Address.MUTABLE_MAPPING_KEY: 'MutableMappingKey'>, ...
-# Exception: Cannot overwrite immutable collections.
+# Failed to overwrite 4 at ROOT['key'][3]{id=4424907152}.
 # Traceback (most recent call last):
 # ...
 # TypeError: Cannot overwrite immutable collections.
@@ -188,13 +187,14 @@ print(obj)
 #  'other_lock': <unlocked _thread.lock... 0x104a7b840>
 # }
 ```
-If performing a `hot_swap` on a `root_obj` would involve attempting to mutate an immutable 
-collection, an exception will be thrown before any modifications occur (even legal mutations) to 
-leave `root_obj` unchanged. Additionally, by default, it will throw an exception before any attempt 
+If performing a `hot_swap` on a `root_obj` throws an exception, an attempt to restore`root_obj` to 
+its original form is made. Additionally, by default, it will throw an exception before any attempt 
 to hot swap an element of a mutable set because this cannot be performed reliably. Imagine swapping 
 all `int` for `None` in `{1, 2, 3, None}` -> `{None}`. It is then ambiguous to determine which 
-elements of the new set should be restored. By default, hot swapping is not allowed with sets, 
-however, if you know it can be performed safely you can use the kwarg 
+elements of the new set should be restored. It would be possible to copy the set `{1, 2, 3, None}` 
+and restore this to the parent object, however, this copy would not share the same location in 
+memory as the original and it may break internal references as a result. By default, hot swapping is
+not allowed with mutable sets, however, if you know it can be performed safely you can use the kwarg 
 `allow_mutable_set_mutations=True`. For example, the set `{1}` could be safely hot swapped to 
 `{None}` and restored due to the fact that the cardinality is unchanged.
 
