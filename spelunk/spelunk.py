@@ -384,17 +384,6 @@ def print_obj_tree(
     :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :param max: Maximum number of results to print
     """
-    r = reprlib.Repr()
-    r.maxstring = 100
-    r.maxother = 100
-    r.maxlist = 2
-    r.maxdict = 2
-    r.maxset = 2
-    r.maxfrozenset = 2
-    r.maxtuple = 2
-    r.maxarray = 2
-    r.maxdeque = 2
-
     relevant_content = get_elements(
         root_obj,
         element_test=element_test,
@@ -406,7 +395,7 @@ def print_obj_tree(
     for key, value in relevant_content.items():
         if max is not None and idx >= max:
             break
-        print(f"{key} -> {r.repr(value)}")
+        print(f"{key} -> {PrettyRepr.repr(value)}")
         idx += 1
 
 
