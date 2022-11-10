@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "spelunk"
-version = "0.1.5"
+version = "0.1.6"
 description = "Package with helpful object recursion utils"
 authors = ["Spencer Tomarken <stomarken@gmail.com>"]
 license = "MIT"

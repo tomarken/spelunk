@@ -1033,6 +1033,62 @@ def test_overwrite_element__immutable_seq(overwrite: PrimTypes) -> None:
         _overwrite_element(obj, (Address.IMMUTABLE_SEQUENCE_IDX, 0), overwrite)
 
 
+def test_overwrite_element__attr_func(obj_1: A) -> None:
+    _overwrite_element(obj_1, (Address.ATTR, "new"), overwrite_func=str)
+    assert obj_1.new == "-1"
+
+
+def test_overwrite_element__slots_func() -> None:
+    b = B()
+    b.val = 1
+    _overwrite_element(b, (Address.ATTR, "val"), overwrite_func=str)
+    assert b.val == "1"
+
+
+def test_overwrite_element__slots_with_inheritance_func() -> None:
+    c = C()
+    c.val = 1
+    c.val2 = 1
+    _overwrite_element(c, (Address.ATTR, "val"), overwrite_func=str)
+    _overwrite_element(c, (Address.ATTR, "val2"), overwrite_func=str)
+    assert c.val == "1"
+    assert c.val2 == "1"
+
+
+def test_overwrite_element__slots_with_dict_func() -> None:
+    d = D()
+    d.val = 1
+    d.val2 = 1
+    d.val3 = 1
+    _overwrite_element(d, (Address.ATTR, "val"), overwrite_func=str)
+    _overwrite_element(d, (Address.ATTR, "val2"), overwrite_func=str)
+    _overwrite_element(d, (Address.ATTR, "val3"), overwrite_func=str)
+    assert d.val == "1"
+    assert d.val2 == "1"
+    d.val3 = 1
+    _overwrite_element(d.__dict__, (Address.MUTABLE_MAPPING_KEY, "val3"), overwrite_func=str)
+    assert d.val3 == "1"
+
+
+def test_overwrite_element__mutable_mapping_func() -> None:
+    obj = {"key": 1}
+    _overwrite_element(obj, (Address.MUTABLE_MAPPING_KEY, "key"), overwrite_func=str)
+    assert obj["key"] == "1"
+
+
+def test_overwrite_element__mutable_seq_func() -> None:
+    obj = [1]
+    _overwrite_element(obj, (Address.MUTABLE_SEQUENCE_IDX, 0), overwrite_func=str)
+    assert obj[0] == "1"
+
+
+def test_overwrite_element__mutable_set_func() -> None:
+    num = 1
+    obj = {num}
+    _overwrite_element(obj, (Address.MUTABLE_SET_ID, id(num)), overwrite_func=str)
+    assert obj == {"1"}
+
+
 @pytest.mark.parametrize("overwrite", get_primitives())
 def test_overwrite_element__bad_address(overwrite: PrimTypes) -> None:
     obj = (1,)
@@ -1052,6 +1108,14 @@ def test_overwrite_elements_at_paths(obj_1: A, overwrite: PrimTypes, memoize: bo
         assert obj_1.also.val == overwrite
     except TypeError:
         pass
+
+
+def test_overwrite_elements_at_paths_func(obj_1: A) -> None:
+    paths = _get_paths(obj_1, element_test=lambda x: isinstance(x, int))
+    _overwrite_elements_at_paths(obj_1, paths, overwrite_func=str, silent=True, raise_on_exception=True)
+    assert obj_1.val == [{"123"}]
+    assert obj_1.new == "-1"
+    assert obj_1.also.val == "33"
 
 
 @pytest.mark.parametrize("memoize", [True, False])
@@ -1111,6 +1175,33 @@ def test_overwrite_elements__by_element(obj_4: dict[str, Any], memoize: bool) ->
         list(
             get_elements(
                 obj_4, element_test=lambda x: isinstance(x, type(None)), memoize=memoize
+            ).keys()
+        )
+        == paths
+    )
+
+
+def test_overwrite_elements__by_element_func(obj_4: dict[str, Any]) -> None:
+    paths = list(
+        get_elements(obj_4, element_test=lambda x: isinstance(x, int)).keys()
+    )
+    overwrite_elements(
+        obj_4, overwrite_func=str, element_test=lambda x: isinstance(x, int)
+    )
+    assert (
+        len(
+            list(
+                get_elements(
+                    obj_4, element_test=lambda x: isinstance(x, int)
+                ).keys()
+            )
+        )
+        == 0
+    )
+    assert (
+        list(
+            get_elements(
+                obj_4, element_test=lambda x: isinstance(x, str)
             ).keys()
         )
         == paths
@@ -1178,6 +1269,18 @@ def test_hot_swap(obj_2: dict[str, Any], memoize: bool) -> None:
         )
     assert original_paths == _get_paths(
         obj_2, element_test=lambda x: isinstance(x, A), memoize=memoize
+    )
+
+
+def test_hot_swap_func(obj_2: dict[str, Any]) -> None:
+    original_paths = _get_paths(obj_2, element_test=lambda x: isinstance(x, A))
+    with hot_swap(obj_2, overwrite_func=str, element_test=lambda x: isinstance(x, A)):
+        assert not _get_paths(obj_2, element_test=lambda x: isinstance(x, A))
+        assert (
+            _get_paths(obj_2, element_test=lambda x: isinstance(x, str)) == original_paths
+        )
+    assert original_paths == _get_paths(
+        obj_2, element_test=lambda x: isinstance(x, A)
     )
 
 

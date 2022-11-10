@@ -23,6 +23,18 @@ import reprlib
 from contextlib import contextmanager
 
 
+PrettyRepr = reprlib.Repr()
+PrettyRepr.maxstring = 100
+PrettyRepr.maxother = 100
+PrettyRepr.maxlist = 2
+PrettyRepr.maxdict = 2
+PrettyRepr.maxset = 2
+PrettyRepr.maxfrozenset = 2
+PrettyRepr.maxtuple = 2
+PrettyRepr.maxarray = 2
+PrettyRepr.maxdeque = 2
+
+
 AtomicCollections = (str, ByteString)
 InternedPrimitives = (Number, str, ByteString)  # NoneType is also included
 
@@ -226,17 +238,34 @@ def _get_elements_from_paths(
 
 
 def _overwrite_element(
-    parent: Any, child: tuple[Address, Union[str, int]], overwrite_value: Any = None
+    parent: Any,
+    child: tuple[Address, Union[str, int]],
+    overwrite_value: Any = None,
+    overwrite_func: Optional[Callable[[Any], Any]] = None,
 ) -> Optional[bool]:
-    """Overwrite the parent sub-element at address with overwrite_value."""
+    """
+    Overwrite the parent's element at address.
+
+    It can use a constant overwrite_value or the callable overwrite_func
+    """
     entry_type, entry = child
     if entry_type == Address.ATTR:
+        if callable(overwrite_func):
+            overwrite_value = overwrite_func(getattr(parent, entry, None))
         setattr(parent, entry, overwrite_value)
-    elif entry_type in [Address.MUTABLE_MAPPING_KEY, Address.MUTABLE_SEQUENCE_IDX]:
+    elif entry_type == Address.MUTABLE_MAPPING_KEY:
+        if callable(overwrite_func):
+            overwrite_value = overwrite_func(parent.get(entry, None))
+        parent[entry] = overwrite_value
+    elif entry_type == Address.MUTABLE_SEQUENCE_IDX:
+        if callable(overwrite_func):
+            overwrite_value = overwrite_func(parent[entry])
         parent[entry] = overwrite_value
     elif entry_type == Address.MUTABLE_SET_ID:
         for item in parent:
             if id(item) == entry:
+                if callable(overwrite_func):
+                    overwrite_value = overwrite_func(item)
                 parent.remove(item)
                 parent.add(overwrite_value)
                 break
@@ -257,10 +286,11 @@ def _overwrite_elements_at_paths(
     root_obj: Any,
     paths: list[list[tuple[Address, Union[str, int]]]],
     overwrite_value: Any = None,
+    overwrite_func: Optional[Callable[[Any], Any]] = None,
     silent: bool = False,
     raise_on_exception: bool = True,
 ) -> None:
-    """Overwrite each elem at each path with overwrite_value."""
+    """Overwrite each elem at each path with overwrite_value or overwrite_func."""
     root_name = "ROOT"
     for path in paths:
         key = root_name
@@ -269,7 +299,7 @@ def _overwrite_elements_at_paths(
             key = _increment_path(key, branch)
             obj = _increment_obj_pointer(obj, branch)
         try:
-            _overwrite_element(obj, path[-1], overwrite_value)
+            _overwrite_element(obj, path[-1], overwrite_value, overwrite_func)
         except TypeError as e:
             if not silent:
                 print(
@@ -278,8 +308,6 @@ def _overwrite_elements_at_paths(
                 )
             if raise_on_exception:
                 raise e
-        except Exception as e:
-            raise e
 
 
 def get_elements(
@@ -314,6 +342,7 @@ def get_elements(
 def overwrite_elements(
     root_obj: Any,
     overwrite_value: Any = None,
+    overwrite_func: Optional[Callable[[Any], Any]] = None,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     memoize: bool = False,
@@ -326,6 +355,7 @@ def overwrite_elements(
 
     :param root_obj: Root object to search
     :param overwrite_value: Value to overwrite
+    :param overwrite_func: Callable to act on element to overwrite (e.g. str)
     :param element_test: Callable to determine whether an element within root_obj is interesting
     :param path_test: Callable to determine whether a path within root_obj is interesting
     :param memoize: Whether or not to cache elements by id and only return unique elements.
@@ -347,6 +377,7 @@ def overwrite_elements(
         root_obj,
         paths=paths,
         overwrite_value=overwrite_value,
+        overwrite_func=overwrite_func,
         silent=silent,
         raise_on_exception=raise_on_exception,
     )
@@ -372,17 +403,6 @@ def print_obj_tree(
     :param unravel_strings: Whether or not to unpack str, bytes, and bytearray objects char by char
     :param max: Maximum number of results to print
     """
-    r = reprlib.Repr()
-    r.maxstring = 100
-    r.maxother = 100
-    r.maxlist = 2
-    r.maxdict = 2
-    r.maxset = 2
-    r.maxfrozenset = 2
-    r.maxtuple = 2
-    r.maxarray = 2
-    r.maxdeque = 2
-
     relevant_content = get_elements(
         root_obj,
         element_test=element_test,
@@ -394,7 +414,7 @@ def print_obj_tree(
     for key, value in relevant_content.items():
         if max is not None and idx >= max:
             break
-        print(f"{key} -> {r.repr(value)}")
+        print(f"{key} -> {PrettyRepr.repr(value)}")
         idx += 1
 
 
@@ -402,6 +422,7 @@ def print_obj_tree(
 def hot_swap(
     root_obj: Any,
     overwrite_value: Any = None,
+    overwrite_func: Optional[Callable[[Any], Any]] = None,
     element_test: Callable[[Any], bool] = lambda x: True,
     path_test: Callable[[Union[int, str]], bool] = lambda x: True,
     memoize: bool = False,
@@ -417,6 +438,7 @@ def hot_swap(
 
     :param root_obj: Root object to search
     :param overwrite_value: Value to overwrite
+    :param overwrite_func: Callable used to overwrite (e.g. str) instead of overwrite_value
     :param element_test: Callable to determine whether an element within root_obj is interesting
     :param path_test: Callable to determine whether a path within root_obj is interesting
     :param memoize: Whether or not to cache elements by id and only return unique elements.
@@ -446,7 +468,8 @@ def hot_swap(
         _overwrite_elements_at_paths(
             root_obj,
             original_elem_paths,
-            overwrite_value,
+            overwrite_value=overwrite_value,
+            overwrite_func=overwrite_func,
             silent=True,
             raise_on_exception=True,
         )
