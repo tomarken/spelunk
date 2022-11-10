@@ -23,6 +23,18 @@ import reprlib
 from contextlib import contextmanager
 
 
+PrettyRepr = reprlib.Repr()
+PrettyRepr.maxstring = 100
+PrettyRepr.maxother = 100
+PrettyRepr.maxlist = 2
+PrettyRepr.maxdict = 2
+PrettyRepr.maxset = 2
+PrettyRepr.maxfrozenset = 2
+PrettyRepr.maxtuple = 2
+PrettyRepr.maxarray = 2
+PrettyRepr.maxdeque = 2
+
+
 AtomicCollections = (str, ByteString)
 InternedPrimitives = (Number, str, ByteString)  # NoneType is also included
 
