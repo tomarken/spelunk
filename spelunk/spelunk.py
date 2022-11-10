@@ -238,8 +238,10 @@ def _get_elements_from_paths(
 
 
 def _overwrite_element(
-    parent: Any, child: tuple[Address, Union[str, int]], overwrite_value: Any = None,
-        overwrite_func: Optional[Callable[[Any], Any]] = None
+    parent: Any,
+    child: tuple[Address, Union[str, int]],
+    overwrite_value: Any = None,
+    overwrite_func: Optional[Callable[[Any], Any]] = None,
 ) -> Optional[bool]:
     """
     Overwrite the parent's element at address.
