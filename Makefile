@@ -20,11 +20,11 @@ style-check:
 	    poetry run black --check --verbose --diff --color $(PACKAGE) tests
 
 
-.PHONY: reformat
-reformat:
-	    poetry run black $(PACKAGE) tests
-
+.PHONY: format
+format:
+	    poetry run black $(PACKAGE) tests; \
+	    poetry run ruff --fix $(PACKAGE) tests
 
 .PHONY: lint
 lint:
-	    poetry run flake8 $(PACKAGE) tests
+	    poetry run ruff $(PACKAGE) tests

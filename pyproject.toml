@@ -12,10 +12,12 @@ repository = "https://github.com/tomarken/spelunk"
 python = ">=3.9,<3.10"
 
 [tool.poetry.dev-dependencies]
-black = ">=22.10.0"
-flake8 = ">=5.0.4"
+black = "^22.10.0"
+ruff = "^0.0.47"
 pytest = "^7.1"
 pytest-cov = "^3.0"
+frozendict = "^2.3"
+numpy = "^1.24"
 
 [tool.black]
     line-length = 100
@@ -25,6 +27,10 @@ pytest-cov = "^3.0"
         __pycache__,
         .pytest_cache,
     """
+
+[tool.ruff]
+    line-length = 100
+    exclude = ['__init__.py']
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
