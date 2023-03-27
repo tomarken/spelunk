@@ -1,1 +1,1 @@
-from .spelunk import get_elements, overwrite_elements, print_obj_tree, hot_swap
+from .utils import print_object_graph, get_elements_of_obj, overwrite_elements_of_obj, hot_swap
