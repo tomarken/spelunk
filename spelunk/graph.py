@@ -82,6 +82,17 @@ class MutableMappingLike(MappingLike, Protocol):
         """Set a mapping element using a single hashable key and replacement accessor_arg."""
 
 
+@runtime_checkable
+class MutableSetLike(Protocol):
+    """Interface that implements a minimal getter, keys, setter methods like MutableMapping."""
+
+    def add(self, value: Hashable) -> None:
+        """Add a set element."""
+
+    def discard(self, value: Hashable) -> None:
+        """Discard a set element."""
+
+
 @dataclasses.dataclass(frozen=True)
 class IterAccessorValue:
     """
@@ -178,9 +189,9 @@ def map_iterable(obj: MappingLike) -> Iterable[tuple[Hashable, Hashable]]:
     return zip(obj.keys(), obj)
 
 
-def set_getter(obj: Set, key: tuple[Hashable, None]) -> tuple[Hashable, Literal[True]]:
+def iterable_getter(obj: Set, key: tuple[Hashable, None]) -> tuple[Hashable, Literal[True]]:
     """
-    Get the set's element.
+    Get the iterable's element.
 
     Because sets have no accessors, we can only get the elements through
     direct iteration and inspection. We return True if success and if
@@ -218,11 +229,10 @@ def set_setter(obj: MutableSet, key: Hashable, value: Hashable) -> None:
     if key == value:
         return
 
-    try:
-        obj.remove(key)
-    except AccessorErrors as e:
-        raise ValueError(f"Could not locate element {key} in set.") from e
+    if key not in obj:
+        raise KeyError(f"Could not locate element {key} to remove in set.")
 
+    obj.discard(key)
     obj.add(value)
 
 
@@ -348,9 +358,9 @@ class Link:
         ]:
             return f"[{value}]"
         elif accessor in [Accessor.SET, Accessor.MUTABLE_SET]:
-            return "{==" + f"{value}" + "}"
+            return "{...}"
         elif accessor is Accessor.COLLECTION:
-            return ".__iter__[...]"
+            return "__iter__().__next__()"
         else:
             raise TypeError(f"Accessor must be a member of {Accessor}.")
 
